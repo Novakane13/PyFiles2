@@ -10,13 +10,16 @@ class SearchWindowForNewTab(QMainWindow):
         super().__init__()
         self.ui = Ui_CustomerSearch()
         self.ui.setupUi(self)
-        self.ui.ncbutton.clicked.connect(self.next_customer)
+        self.ui.ncbutton.clicked.connect(self.open_new_customer_account_window)
         self.ui.searchbutton.clicked.connect(self.search_customers)
         self.ui.closebutton.clicked.connect(self.close)
         self.customer_windows = []
 
-    def next_customer(self):
-        self.show()
+    def open_new_customer_account_window(self):
+        from customeraccount import CustomerAccountWindow
+        customer_account_window = CustomerAccountWindow()
+        customer_account_window.show()
+        self.customer_windows.append(customer_account_window)
 
     def search_customers(self):
         last_name = self.ui.lnsearch.text()

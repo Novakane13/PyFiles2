@@ -1,124 +1,178 @@
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget, QVBoxLayout, QPushButton, QLineEdit, QTextEdit, QTreeWidgetItem
-from Test import Ui_CustomerAccount
-import sqlite3
-
-from PySide6.QtWidgets import QMainWindow, QTabWidget, QWidget, QVBoxLayout, QPushButton, QLineEdit, QTextEdit, QApplication
-from Test import Ui_CustomerAccount
-import sqlite3
 import sys
-from customersearchnewtab import SearchWindowForNewTab
+import sqlite3
+from PySide6.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QLineEdit
+from PySide6.QtCore import Qt, QEvent
+from Test import Ui_CustomerAccount2
 
-class CustomerAccountWindow(QMainWindow):
-    def __init__(self, customer_id=None):
+class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
+    def __init__(self, customer_data1=None, customer_data2=None):
         super().__init__()
-
-        self.ui = Ui_CustomerAccount()
-        self.ui.setupUi(self)
-        self.customer_tabs = self.ui.catabs
-        self.search_window_for_new_tab = None
-
-        if customer_id is not None:
-            self.load_customer_tab(customer_id, 0)
+        self.setupUi(self)
+        
+        if customer_data1:
+            self.load_customer_data_page1(customer_data1)
         else:
-            self.add_new_tab_button()
+            self.clear_page1()
+        
+        if customer_data2:
+            self.load_customer_data_page2(customer_data2)
+        else:
+            self.clear_page2()
+        
+        self.tabWidget.setCurrentIndex(0)  # Ensure Tab 1 is selected
+        self.stackedWidget.setCurrentIndex(0)  # Ensure Page 1 is selected
 
-        self.customer_tabs.tabBarDoubleClicked.connect(self.open_search_window_for_new_tab)
-        self.customer_tabs.currentChanged.connect(self.on_tab_change)
+        # Customer data
+        self.customer_id1 = customer_data1.get("id", None) if customer_data1 else None
+        self.customer_data1 = customer_data1 if customer_data1 else {}
+        self.customer_id2 = customer_data2.get("id", None) if customer_data2 else None
+        self.customer_data2 = customer_data2 if customer_data2 else {}
 
-    def add_new_tab_button(self):
-        new_tab_button = QPushButton("New Customer")
-        new_tab_button.clicked.connect(self.open_search_window_for_new_tab)
-        new_tab = QWidget()
-        layout = QVBoxLayout()
-        layout.addWidget(new_tab_button)
-        new_tab.setLayout(layout)
-        self.customer_tabs.addTab(new_tab, "New Customer")
+        # Connect the buttons to their functions
+        self.pushButton_16.clicked.connect(self.show_page2)
+        self.pushButton_3.clicked.connect(self.show_page1)
+        
+        # Connect the editingFinished signals to save the data
+        self.FirstNameInput.editingFinished.connect(self.save_customer_data_page1)
+        self.LastNameInput.editingFinished.connect(self.save_customer_data_page1)
+        self.PhoneNumberInput.editingFinished.connect(self.save_customer_data_page1)
+        self.NotesInput.focusOutEvent = self.create_save_event(self.NotesInput, self.save_customer_data_page1)
 
-    def open_search_window_for_new_tab(self):
-        from customersearch import SearchWindowForNewTab  # Import here to avoid circular dependency
-        if not self.search_window_for_new_tab:
-            self.search_window_for_new_tab = SearchWindowForNewTab()
-            self.search_window_for_new_tab.customer_selected.connect(self.load_customer_tab_for_new_tab)
-        self.search_window_for_new_tab.show()
+        self.FirstNameInput_2.editingFinished.connect(self.save_customer_data_page2)
+        self.LastNameInput_2.editingFinished.connect(self.save_customer_data_page2)
+        self.PhoneNumberInput_2.editingFinished.connect(self.save_customer_data_page2)
+        self.NotesInput_2.focusOutEvent = self.create_save_event(self.NotesInput_2, self.save_customer_data_page2)
 
-    def on_tab_change(self, index):
-        # Ensure the search window only opens for the second tab (index 1)
-        if index == 1:
-            self.open_search_window_for_new_tab()
+        # Ensure QLineEdit widgets also save on focus out
+        self.FirstNameInput.focusOutEvent = self.create_save_event(self.FirstNameInput, self.save_customer_data_page1)
+        self.LastNameInput.focusOutEvent = self.create_save_event(self.LastNameInput, self.save_customer_data_page1)
+        self.PhoneNumberInput.focusOutEvent = self.create_save_event(self.PhoneNumberInput, self.save_customer_data_page1)
 
-    def load_customer_tab(self, customer_id, tab_index):
-        customer_info = self.get_customer_info(customer_id)
-        tab = self.customer_tabs.widget(tab_index)
-        if tab is None or isinstance(tab.layout(), QVBoxLayout):
-            tab = QWidget()
-            self.customer_tabs.insertTab(tab_index, tab, customer_info['name'])
-        self.populate_customer_tab(tab, customer_info, customer_id)
-        self.customer_tabs.setTabText(tab_index, customer_info['name'])
-        self.customer_tabs.setCurrentWidget(tab)
+        self.FirstNameInput_2.focusOutEvent = self.create_save_event(self.FirstNameInput_2, self.save_customer_data_page2)
+        self.LastNameInput_2.focusOutEvent = self.create_save_event(self.LastNameInput_2, self.save_customer_data_page2)
+        self.PhoneNumberInput_2.focusOutEvent = self.create_save_event(self.PhoneNumberInput_2, self.save_customer_data_page2)
 
-    def load_customer_tab_for_new_tab(self, customer_id):
-        customer_info = self.get_customer_info(customer_id)
-        tab_index = 1  # Ensure we are targeting the second tab
-        tab = self.customer_tabs.widget(tab_index)
-        if tab is None or isinstance(tab.layout(), QVBoxLayout):
-            tab = QWidget()
-            self.customer_tabs.insertTab(tab_index, tab, customer_info['name'])
-        self.populate_customer_tab(tab, customer_info, customer_id)
-        self.customer_tabs.setTabText(tab_index, customer_info['name'])
-        self.customer_tabs.setCurrentWidget(tab)
+    def create_save_event(self, widget, save_function):
+        original_focus_out_event = widget.focusOutEvent
 
-    def populate_customer_tab(self, tab, customer_info, customer_id):
-        lninput = tab.findChild(QLineEdit, "lninput")
-        fninput = tab.findChild(QLineEdit, "fninput")
-        pninput = tab.findChild(QLineEdit, "pninput")
-        ninput = tab.findChild(QTextEdit, "ninput")
+        def save_event(event):
+            if event.type() == QEvent.FocusOut:
+                save_function()
+            return original_focus_out_event(event)
+        return save_event
 
-        if lninput:
-            lninput.setText(customer_info['last_name'])
-            lninput.focusOutEvent = lambda event: self.save_customer_info(customer_id, tab, event)
-        if fninput:
-            fninput.setText(customer_info['first_name'])
-            fninput.focusOutEvent = lambda event: self.save_customer_info(customer_id, tab, event)
-        if pninput:
-            pninput.setText(customer_info['phone_number'])
-            pninput.focusOutEvent = lambda event: self.save_customer_info(customer_id, tab, event)
-        if ninput:
-            ninput.setPlainText(customer_info['notes'])
-            ninput.focusOutEvent = lambda event: self.save_customer_info(customer_id, tab, event)
+    def load_customer_data_page1(self, customer_data):
+        self.FirstNameInput.setText(customer_data.get("first_name", ""))
+        self.LastNameInput.setText(customer_data.get("last_name", ""))
+        self.PhoneNumberInput.setText(customer_data.get("phone_number", ""))
+        self.NotesInput.setPlainText(customer_data.get("notes", ""))
+        self.customer_id1 = customer_data.get("id", None)
 
-    def save_customer_info(self, customer_id, tab, event):
-        lninput = tab.findChild(QLineEdit, "lninput")
-        fninput = tab.findChild(QLineEdit, "fninput")
-        pninput = tab.findChild(QLineEdit, "pninput")
-        ninput = tab.findChild(QTextEdit, "ninput")
+    def load_customer_data_page2(self, customer_data):
+        self.FirstNameInput_2.setText(customer_data.get("first_name", ""))
+        self.LastNameInput_2.setText(customer_data.get("last_name", ""))
+        self.PhoneNumberInput_2.setText(customer_data.get("phone_number", ""))
+        self.NotesInput_2.setPlainText(customer_data.get("notes", ""))
+        self.customer_id2 = customer_data.get("id", None)
 
-        conn = sqlite3.connect("pos_system.db")
+    def clear_page1(self):
+        self.FirstNameInput.clear()
+        self.LastNameInput.clear()
+        self.PhoneNumberInput.clear()
+        self.NotesInput.clear()
+        self.customer_id1 = None
+
+    def clear_page2(self):
+        self.FirstNameInput_2.clear()
+        self.LastNameInput_2.clear()
+        self.PhoneNumberInput_2.clear()
+        self.NotesInput_2.clear()
+        self.customer_id2 = None
+
+    def save_customer_data_page1(self):
+        conn = sqlite3.connect('pos_system.db')
         cursor = conn.cursor()
-        cursor.execute("""
-        UPDATE customers SET first_name = ?, last_name = ?, phone_number = ?, notes = ? WHERE id = ?
-        """, (fninput.text(), lninput.text(), pninput.text(), ninput.toPlainText(), customer_id))
+        
+        if self.customer_id1:
+            cursor.execute("""
+                UPDATE customers
+                SET first_name = ?, last_name = ?, phone_number = ?, notes = ?
+                WHERE id = ?
+            """, (
+                self.FirstNameInput.text(),
+                self.LastNameInput.text(),
+                self.PhoneNumberInput.text(),
+                self.NotesInput.toPlainText(),
+                self.customer_id1
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO customers (first_name, last_name, phone_number, notes)
+                VALUES (?, ?, ?, ?)
+            """, (
+                self.FirstNameInput.text(),
+                self.LastNameInput.text(),
+                self.PhoneNumberInput.text(),
+                self.NotesInput.toPlainText()
+            ))
+            self.customer_id1 = cursor.lastrowid
+        
         conn.commit()
         conn.close()
 
-        # Call the original focusOutEvent
-        if isinstance(event, QLineEdit):
-            QLineEdit.focusOutEvent(event, event)
-        elif isinstance(event, QTextEdit):
-            QTextEdit.focusOutEvent(event, event)
-
-    def get_customer_info(self, customer_id):
-        conn = sqlite3.connect("pos_system.db")
+    def save_customer_data_page2(self):
+        conn = sqlite3.connect('pos_system.db')
         cursor = conn.cursor()
-        query = "SELECT first_name, last_name, phone_number, notes FROM customers WHERE id = ?"
-        cursor.execute(query, (customer_id,))
-        result = cursor.fetchone()
+        
+        if self.customer_id2:
+            cursor.execute("""
+                UPDATE customers
+                SET first_name = ?, last_name = ?, phone_number = ?, notes = ?
+                WHERE id = ?
+            """, (
+                self.FirstNameInput_2.text(),
+                self.LastNameInput_2.text(),
+                self.PhoneNumberInput_2.text(),
+                self.NotesInput_2.toPlainText(),
+                self.customer_id2
+            ))
+        else:
+            cursor.execute("""
+                INSERT INTO customers (first_name, last_name, phone_number, notes)
+                VALUES (?, ?, ?, ?)
+            """, (
+                self.FirstNameInput_2.text(),
+                self.LastNameInput_2.text(),
+                self.PhoneNumberInput_2.text(),
+                self.NotesInput_2.toPlainText()
+            ))
+            self.customer_id2 = cursor.lastrowid
+        
+        conn.commit()
         conn.close()
-        if result:
-            return {
-                'first_name': result[0],
-                'last_name': result[1],
-                'phone_number': result[2],
-                'notes': result[3],
-                'name': f"{result[0]} {result[1]}"
-            }
-        return {}
+
+    def show_page1(self):
+        self.stackedWidget.setCurrentIndex(0)
+
+    def show_page2(self):
+        self.stackedWidget.setCurrentIndex(1)
+
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    customer_data1 = {
+        "id": 1,
+        "first_name": "Sample",
+        "last_name": "Customer",
+        "phone_number": "0000000000",
+        "notes": "Sample notes"
+    }
+    customer_data2 = {
+        "id": 2,
+        "first_name": "Another",
+        "last_name": "Customer",
+        "phone_number": "1111111111",
+        "notes": "Other sample notes"
+    }
+    account_window = CustomerAccountWindow(customer_data1, customer_data2)
+    account_window.show()
+    sys.exit(app.exec())

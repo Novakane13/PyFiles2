@@ -1,59 +1,78 @@
-from PySide6.QtWidgets import QMainWindow, QTreeWidgetItem
-from PySide6.QtCore import Signal, Qt
-from Test import Ui_CustomerSearch
 import sqlite3
+import sys
+from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView
+from PySide6.QtCore import Signal, Slot, Qt
+from Test import Ui_CustomerSearch
 
-class CustomerSearchWindow(QMainWindow):
-    customer_selected = Signal(int)
+class CustomerSearch(QDialog, Ui_CustomerSearch):
+    customer_selected = Signal(dict)
+    new_customer = Signal()
 
     def __init__(self):
         super().__init__()
-        self.ui = Ui_CustomerSearch()
-        self.ui.setupUi(self)
-        self.ui.ncbutton.clicked.connect(self.next_customer)
-        self.ui.searchbutton.clicked.connect(self.search_customers)
-        self.ui.closebutton.clicked.connect(self.close)
-        self.customer_windows = []
+        self.setupUi(self)
+        self.searchbutton.clicked.connect(self.search_customers)
+        self.ncbutton.clicked.connect(self.create_new_customer)
+        self.resultslist.itemDoubleClicked.connect(self.select_customer)
+        
+        # Connect Enter key press for search inputs and result selection
+        self.fnsearch.returnPressed.connect(self.search_customers)
+        self.lnsearch.returnPressed.connect(self.search_customers)
+        self.pnsearch.returnPressed.connect(self.search_customers)
+        self.resultslist.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.resultslist.setSelectionMode(QAbstractItemView.SingleSelection)
+        self.resultslist.keyPressEvent = self.resultslist_key_press_event
 
-    def next_customer(self):
-        self.show()
-
+    @Slot()
     def search_customers(self):
-        last_name = self.ui.lnsearch.text()
-        first_name = self.ui.fnsearch.text()
-        phone_number = self.ui.pnsearch.text()
-
-        conn = sqlite3.connect("pos_system.db")
+        # Fetch search results from the database
+        conn = sqlite3.connect('pos_system.db')
         cursor = conn.cursor()
-
+        
         query = """
-        SELECT id, first_name, last_name, phone_number FROM customers 
-        WHERE last_name LIKE ? OR first_name LIKE ? OR phone_number LIKE ?
+        SELECT id, first_name, last_name, phone_number, notes
+        FROM customers
+        WHERE first_name LIKE ? OR last_name LIKE ? OR phone_number LIKE ?
         """
-        cursor.execute(query, ('%' + last_name + '%', '%' + first_name + '%', '%' + phone_number + '%'))
-        results = cursor.fetchall()
+        
+        search_term = f"%{self.fnsearch.text()}%"
+        cursor.execute(query, (search_term, search_term, search_term))
+        search_results = cursor.fetchall()
+        
+        self.resultslist.clear()
+        for result in search_results:
+            item = QTreeWidgetItem([f"{result[1]} {result[2]}", result[3]])
+            item.setData(0, 1, {
+                "id": result[0],
+                "first_name": result[1],
+                "last_name": result[2],
+                "phone_number": result[3],
+                "notes": result[4]
+            })
+            self.resultslist.addTopLevelItem(item)
+        
         conn.close()
 
-        self.ui.resultslist.clear()
-        for result in results:
-            item = QTreeWidgetItem(self.ui.resultslist)
-            item.setText(0, f"{result[1]} {result[2]}")
-            item.setText(1, result[3])
-            item.setData(0, Qt.UserRole, result[0])
-            self.ui.resultslist.addTopLevelItem(item)
+    @Slot(QTreeWidgetItem, int)
+    def select_customer(self, item, column):
+        customer_data = item.data(0, 1)
+        self.customer_selected.emit(customer_data)
+        self.close()
 
-        self.ui.resultslist.itemDoubleClicked.connect(self.open_existing_customer_account)
+    def resultslist_key_press_event(self, event):
+        if event.key() == Qt.Key_Return or event.key() == Qt.Key_Enter:
+            selected_items = self.resultslist.selectedItems()
+            if selected_items:
+                self.select_customer(selected_items[0], 0)
+        else:
+            QAbstractItemView.keyPressEvent(self.resultslist, event)
 
-    def open_existing_customer_account(self, item):
-        customer_id = item.data(0, Qt.UserRole)
-        from customeraccount import CustomerAccountWindow
-        customer_account_window = CustomerAccountWindow(customer_id)
-        customer_account_window.show()
-        self.customer_windows.append(customer_account_window)
+    def create_new_customer(self):
+        self.new_customer.emit()
+        self.close()
 
-        
-    def open_new_customer_account_window(self):
-        from customeraccount import CustomerAccountWindow
-        customer_account_window = CustomerAccountWindow()
-        customer_account_window.show()
-        self.customer_windows.append(customer_account_window)
+if __name__ == "__main__":
+    app = QApplication(sys.argv)
+    search_window = CustomerSearch()
+    search_window.show()
+    sys.exit(app.exec())
