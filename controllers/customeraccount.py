@@ -6,6 +6,7 @@ from PySide6.QtCore import Qt, QEvent
 from views.Test import Ui_CustomerAccount2
 from controllers.customersearch import CustomerSearch
 from controllers.quickticket import QuickTicketWindow  # Corrected import
+from controllers.detailedticket import DetailedTicketWindow  # Corrected import
 
 class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
     def __init__(self, customer_data1=None, customer_data2=None):
@@ -38,6 +39,8 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
         self.pushButton_2.clicked.connect(self.open_search_window_page2)
         self.qtbutton.clicked.connect(self.open_quick_ticket_page1)  # Connect to quick ticket creation
         self.qtbutton_2.clicked.connect(self.open_quick_ticket_page2)  # Connect to quick ticket creation
+        self.pushButton_4.clicked.connect(self.open_detailed_ticket_page1)  # Connect to detailed ticket creation
+        self.pushButton_13.clicked.connect(self.open_detailed_ticket_page2)  # Connect to detailed ticket creation
         
         # Connect the editingFinished signals to save the data
         self.FirstNameInput.editingFinished.connect(self.save_customer_data_page1)
@@ -187,6 +190,16 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
         print(f"Opening Quick Ticket for customer_id2: {self.customer_id2}")
         self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id2)
         self.quick_ticket_window.show()
+
+    def open_detailed_ticket_page1(self):
+        print(f"Opening Detailed Ticket for customer_id1: {self.customer_id1}")
+        self.detailed_ticket_window = DetailedTicketWindow(customer_id=self.customer_id1)
+        self.detailed_ticket_window.show()
+
+    def open_detailed_ticket_page2(self):
+        print(f"Opening Detailed Ticket for customer_id2: {self.customer_id2}")
+        self.detailed_ticket_window = DetailedTicketWindow(customer_id=self.customer_id2)
+        self.detailed_ticket_window.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

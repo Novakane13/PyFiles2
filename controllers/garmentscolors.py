@@ -33,7 +33,41 @@ class GarmentsColorsWindow(QMainWindow):
             self.selected_color = color
             self.ui.ccbutton.setStyleSheet(f"background-color: {color.name()}")
             self.ui.ccbutton.setText("Color Selected")
+            self.apply_outline_color(color)
+            
+    def apply_outline_color(self, color):
+        outline_style = f"border: 2px solid {color.name()};"
+        widgets = [
+            self.ui.centralwidget,
+            self.ui.sgbutton,
+            self.ui.sglist,
+            self.ui.gninput,
+            self.ui.gnlabel,
+            self.ui.sglabel,
+            self.ui.avbutton,
+            self.ui.sibutton,
+            self.ui.avlist,
+            self.ui.avlabel,
+            self.ui.egbutton,
+            self.ui.dgbutton,
+            self.ui.cninput,
+            self.ui.cnlabel,
+            self.ui.ccbutton,
+            self.ui.sclist,
+            self.ui.dcbutton,
+            self.ui.scbutton,
+            self.ui.sclabel,
+            self.ui.ecbutton,
+            self.ui.lineEdit,
+            self.ui.label,
+            self.ui.ImageLabel
+        ]
+        
+        for widget in widgets:
+            widget.setStyleSheet(outline_style)
 
+
+            
     def save_color(self):
         color_name = self.ui.cninput.text().strip()
         if not color_name:
