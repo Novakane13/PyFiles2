@@ -1,5 +1,5 @@
 from PySide6.QtWidgets import QMainWindow
-from Test import Ui_DetailedTicketCreation
+from views.Test import Ui_DetailedTicketCreation
 
 class DetailedTicketWindow(QMainWindow):
     def __init__(self):

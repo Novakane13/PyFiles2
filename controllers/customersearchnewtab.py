@@ -1,7 +1,8 @@
 from PySide6.QtWidgets import QMainWindow, QTreeWidgetItem
 from PySide6.QtCore import Signal, Qt
-from Test import Ui_CustomerSearch
+from views.Test import Ui_CustomerSearch
 import sqlite3
+import os
 
 class SearchWindowForNewTab(QMainWindow):
     customer_selected = Signal(int)
@@ -26,7 +27,9 @@ class SearchWindowForNewTab(QMainWindow):
         first_name = self.ui.fnsearch.text()
         phone_number = self.ui.pnsearch.text()
 
-        conn = sqlite3.connect("pos_system.db")
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
         query = """

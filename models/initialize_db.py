@@ -1,9 +1,12 @@
 import sqlite3
+import os
 
 def initialize_database():
-    conn = sqlite3.connect('pos_system.db')
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    db_path = os.path.join(project_root, 'models', 'pos_system.db')
+    conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
-
+    
     # Create customers table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS customers (
@@ -44,13 +47,24 @@ def initialize_database():
     )
     ''')
 
-    # Create garments table
+    # Create created garments table
     cursor.execute('''
-    CREATE TABLE IF NOT EXISTS garments (
+    CREATE TABLE IF NOT EXISTS cgarments (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
-        image TEXT NOT NULL,
+        image TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    )
+    ''')
+    
+        # Create created garment variations table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS cgarment_variations (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        cgarment_id INTEGER NOT NULL,
+        variation TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (cgarment_id) REFERENCES cgarments(id)
     )
     ''')
 
@@ -69,6 +83,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS patterns (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        image TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
@@ -78,6 +93,7 @@ def initialize_database():
     CREATE TABLE IF NOT EXISTS textures (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         name TEXT NOT NULL,
+        image TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
@@ -102,7 +118,31 @@ def initialize_database():
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     ''')
-
+    
+    # Create quick tickets table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS quick_tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_id INTEGER NOT NULL,
+        ticket_number INTEGER NOT NULL,
+        customer_id INTEGER NOT NULL,
+        ticket_type TEXT NOT NULL,
+        due_date TEXT NOT NULL,
+        pieces INTEGER NOT NULL,
+        notes TEXT,
+        all_notes TEXT,
+        FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
+    )
+    ''')
+    
+    # Create table for tracking ticket numbers
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS ticket_numbers (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        ticket_number INTEGER NOT NULL
+    )
+    ''')
     conn.commit()
     conn.close()
 

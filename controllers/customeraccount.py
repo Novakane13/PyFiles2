@@ -1,8 +1,11 @@
 import sys
 import sqlite3
+import os
 from PySide6.QtWidgets import QApplication, QMainWindow, QPlainTextEdit, QLineEdit
 from PySide6.QtCore import Qt, QEvent
-from Test import Ui_CustomerAccount2
+from views.Test import Ui_CustomerAccount2
+from controllers.customersearch import CustomerSearch
+from controllers.quickticket import QuickTicketWindow  # Corrected import
 
 class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
     def __init__(self, customer_data1=None, customer_data2=None):
@@ -31,6 +34,10 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
         # Connect the buttons to their functions
         self.pushButton_16.clicked.connect(self.show_page2)
         self.pushButton_3.clicked.connect(self.show_page1)
+        self.pushButton.clicked.connect(self.open_search_window_page1)
+        self.pushButton_2.clicked.connect(self.open_search_window_page2)
+        self.qtbutton.clicked.connect(self.open_quick_ticket_page1)  # Connect to quick ticket creation
+        self.qtbutton_2.clicked.connect(self.open_quick_ticket_page2)  # Connect to quick ticket creation
         
         # Connect the editingFinished signals to save the data
         self.FirstNameInput.editingFinished.connect(self.save_customer_data_page1)
@@ -90,7 +97,9 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
         self.customer_id2 = None
 
     def save_customer_data_page1(self):
-        conn = sqlite3.connect('pos_system.db')
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         if self.customer_id1:
@@ -121,7 +130,9 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
         conn.close()
 
     def save_customer_data_page2(self):
-        conn = sqlite3.connect('pos_system.db')
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         if self.customer_id2:
@@ -156,6 +167,26 @@ class CustomerAccountWindow(QMainWindow, Ui_CustomerAccount2):
 
     def show_page2(self):
         self.stackedWidget.setCurrentIndex(1)
+
+    def open_search_window_page1(self):
+        self.search_window = CustomerSearch(target_page=1)
+        self.search_window.customer_selected.connect(self.load_customer_data_page1)
+        self.search_window.show()
+
+    def open_search_window_page2(self):
+        self.search_window = CustomerSearch(target_page=2)
+        self.search_window.customer_selected.connect(self.load_customer_data_page2)
+        self.search_window.show()
+
+    def open_quick_ticket_page1(self):
+        print(f"Opening Quick Ticket for customer_id1: {self.customer_id1}")
+        self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id1)
+        self.quick_ticket_window.show()
+
+    def open_quick_ticket_page2(self):
+        print(f"Opening Quick Ticket for customer_id2: {self.customer_id2}")
+        self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id2)
+        self.quick_ticket_window.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

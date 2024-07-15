@@ -1,11 +1,11 @@
 import sys
 from PySide6.QtWidgets import QApplication, QMainWindow
-from Test import Ui_Main
-from customersearch import CustomerSearch
-from tickettype import TicketTypeCreationWindow
-from garmentscolors import GarmentsColorsWindow
-from ticketoptions import TicketOptionsWindow
-from customeraccount import CustomerAccountWindow
+from views.Test import Ui_Main
+from controllers.customersearch import CustomerSearch
+from controllers.tickettype import TicketTypeCreationWindow
+from controllers.garmentscolors import GarmentsColorsWindow
+from controllers.ticketoptions import TicketOptionsWindow
+from controllers.customeraccount import CustomerAccountWindow
 
 class MainWindow(QMainWindow):
     def __init__(self):

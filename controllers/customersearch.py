@@ -1,32 +1,51 @@
-import sqlite3
 import sys
-from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView
+import sqlite3
+import os
+from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView, QPushButton, QLineEdit
 from PySide6.QtCore import Signal, Slot, Qt
-from Test import Ui_CustomerSearch
+from views.Test import Ui_CustomerSearch
 
 class CustomerSearch(QDialog, Ui_CustomerSearch):
     customer_selected = Signal(dict)
     new_customer = Signal()
 
-    def __init__(self):
+    def __init__(self, target_page=1):
         super().__init__()
         self.setupUi(self)
+        self.target_page = target_page
+
+        # Hide the last name and phone number input fields
+        self.lnsearch.setVisible(False)
+        self.lnlabel.setVisible(False)
+        self.pnsearch.setVisible(False)
+        self.pnlabel.setVisible(False)
+        
+        # Change the label of the first name input to a general search label
+        self.fnlabel.setText("Search:")
+
         self.searchbutton.clicked.connect(self.search_customers)
         self.ncbutton.clicked.connect(self.create_new_customer)
         self.resultslist.itemDoubleClicked.connect(self.select_customer)
         
-        # Connect Enter key press for search inputs and result selection
+        # Connect Enter key press for the search input and result selection
         self.fnsearch.returnPressed.connect(self.search_customers)
-        self.lnsearch.returnPressed.connect(self.search_customers)
-        self.pnsearch.returnPressed.connect(self.search_customers)
         self.resultslist.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.resultslist.setSelectionMode(QAbstractItemView.SingleSelection)
         self.resultslist.keyPressEvent = self.resultslist_key_press_event
 
+        # Set focus to the search input field when the dialog opens
+        self.fnsearch.setFocus()
+
+        # Remove default status from the "New Customer" button
+        self.ncbutton.setAutoDefault(False)
+        self.ncbutton.setDefault(False)
+
     @Slot()
     def search_customers(self):
         # Fetch search results from the database
-        conn = sqlite3.connect('pos_system.db')
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
         query = """

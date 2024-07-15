@@ -1,7 +1,9 @@
 import sqlite3
+import os
 from PySide6.QtWidgets import QMainWindow, QColorDialog, QFileDialog, QListWidgetItem, QMessageBox
-from Test import Ui_GarmentandColorCreation
-from PySide6.QtGui import QPixmap, QIcon
+from PySide6.QtGui import QPixmap, QIcon, QColor, QBrush
+from PySide6.QtCore import Qt
+from views.Test import Ui_GarmentandColorCreation
 
 class GarmentsColorsWindow(QMainWindow):
     def __init__(self):
@@ -17,9 +19,13 @@ class GarmentsColorsWindow(QMainWindow):
         self.ui.avbutton.clicked.connect(self.add_variation)
         self.ui.sgbutton.clicked.connect(self.save_garment)
         
-        # Attributes to store selected color and image
+        # Attributes to store selected color, image, and variations
         self.selected_color = None
         self.selected_image = None
+        self.variations = []
+
+        self.load_saved_colors()
+        self.load_saved_garments()
 
     def choose_color(self):
         color = QColorDialog.getColor()
@@ -37,7 +43,9 @@ class GarmentsColorsWindow(QMainWindow):
             QMessageBox.warning(self, "Input Error", "Please choose a color.")
             return
         
-        conn = sqlite3.connect('pos_system.db')
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("INSERT INTO colors (name, color) VALUES (?, ?)", (color_name, self.selected_color.name()))
         conn.commit()
@@ -56,39 +64,80 @@ class GarmentsColorsWindow(QMainWindow):
         if file_name:
             self.selected_image = file_name
             self.ui.sibutton.setText("Image Selected")
+            pixmap = QPixmap(file_name)
+            scaled_pixmap = pixmap.scaled(self.ui.ImageLabel.size(), Qt.KeepAspectRatio)
+            self.ui.ImageLabel.setPixmap(scaled_pixmap)
 
     def add_variation(self):
-        variation_name = self.ui.gninput.text().strip()
+        variation_name = self.ui.lineEdit.text().strip()
         if not variation_name:
             QMessageBox.warning(self, "Input Error", "Please enter a variation name.")
             return
         
+        self.variations.append(variation_name)
         self.ui.avlist.addItem(variation_name)
-        self.ui.gninput.clear()
+        self.ui.lineEdit.clear()
 
     def save_garment(self):
         garment_name = self.ui.gninput.text().strip()
         if not garment_name:
             QMessageBox.warning(self, "Input Error", "Please enter a garment name.")
             return
-        if self.selected_image is None:
-            QMessageBox.warning(self, "Input Error", "Please select an image.")
-            return
         
-        conn = sqlite3.connect('pos_system.db')
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO garments (name, image) VALUES (?, ?)", (garment_name, self.selected_image))
+        cursor.execute("INSERT INTO cgarments (name, image) VALUES (?, ?)", (garment_name, self.selected_image))
+        cgarment_id = cursor.lastrowid
+        
+        for variation in self.variations:
+            cursor.execute("INSERT INTO cgarment_variations (cgarment_id, variation) VALUES (?, ?)", (cgarment_id, variation))
+        
         conn.commit()
         conn.close()
 
         garment_item = QListWidgetItem(garment_name)
-        garment_item.setIcon(QIcon(QPixmap(self.selected_image)))
+        if self.selected_image:
+            garment_item.setIcon(QIcon(QPixmap(self.selected_image)))
         self.ui.sglist.addItem(garment_item)
         
+        # Clear input fields and reset attributes
         self.ui.gninput.clear()
         self.ui.avlist.clear()
+        self.ui.ImageLabel.clear()
         self.selected_image = None
+        self.variations = []
         self.ui.sibutton.setText("Select Image")
+
+    def load_saved_colors(self):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, color FROM colors")
+        saved_colors = cursor.fetchall()
+        conn.close()
+
+        for color_name, color_value in saved_colors:
+            item = QListWidgetItem(color_name)
+            item.setBackground(QBrush(QColor(color_value)))
+            self.ui.sclist.addItem(item)
+
+    def load_saved_garments(self):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name, image FROM cgarments")
+        saved_garments = cursor.fetchall()
+        conn.close()
+
+        for garment_name, image_path in saved_garments:
+            garment_item = QListWidgetItem(garment_name)
+            if image_path:
+                garment_item.setIcon(QIcon(QPixmap(image_path)))
+            self.ui.sglist.addItem(garment_item)
 
 if __name__ == "__main__":
     import sys
