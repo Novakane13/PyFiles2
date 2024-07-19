@@ -6,6 +6,7 @@ from controllers.tickettype import TicketTypeCreationWindow
 from controllers.garmentscolors import GarmentsColorsWindow
 from controllers.ticketoptions import TicketOptionsWindow
 from controllers.customeraccount import CustomerAccountWindow
+from garmentpricing import GarmentPricingWindow  # Import the GarmentPricingWindow
 
 class MainWindow(QMainWindow):
     def __init__(self):
@@ -18,6 +19,7 @@ class MainWindow(QMainWindow):
         self.ui.ttcbutton.clicked.connect(self.open_ticket_type_creation_window)
         self.ui.gandccbutton.clicked.connect(self.open_garments_colors_window)
         self.ui.tocbutton.clicked.connect(self.open_ticket_options_window)
+        self.ui.pushButton.clicked.connect(self.open_garment_pricing_window)  # Connect the Garment Pricing button
 
     def open_search_window(self):
         self.search_window = CustomerSearch()
@@ -65,6 +67,10 @@ class MainWindow(QMainWindow):
     def open_ticket_options_window(self):
         self.ticket_options_window = TicketOptionsWindow()
         self.ticket_options_window.show()
+
+    def open_garment_pricing_window(self):
+        self.garment_pricing_window = GarmentPricingWindow()
+        self.garment_pricing_window.show()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
