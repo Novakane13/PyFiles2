@@ -34,6 +34,19 @@ def initialize_database():
     )
     ''')
 
+    # Create tickets table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS tickets (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        customer_id INTEGER NOT NULL,
+        ticket_type_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (customer_id) REFERENCES customers(id),
+        FOREIGN KEY (ticket_type_id) REFERENCES ticket_types(id)
+    )
+    ''')
+
     # Create created garments table
     cursor.execute('''
     CREATE TABLE IF NOT EXISTS cgarments (
@@ -106,13 +119,20 @@ def initialize_database():
     )
     ''')
     
-    cursor.execute('''    
-    CREATE TABLE IF NOT EXISTS prices (
+    # Create quick tickets table
+    cursor.execute('''
+    CREATE TABLE IF NOT EXISTS quick_tickets (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        cgarment_id INTEGER,
-        variation_id INTEGER,
-        price REAL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        ticket_id INTEGER NOT NULL,
+        ticket_number INTEGER NOT NULL,
+        customer_id INTEGER NOT NULL,
+        ticket_type TEXT NOT NULL,
+        due_date TEXT NOT NULL,
+        pieces INTEGER NOT NULL,
+        notes TEXT,
+        all_notes TEXT,
+        FOREIGN KEY (ticket_id) REFERENCES tickets(id),
+        FOREIGN KEY (customer_id) REFERENCES customers(id)
     )
     ''')
     
@@ -123,29 +143,6 @@ def initialize_database():
         ticket_number INTEGER NOT NULL
     )
     ''')
-    
-    cursor.execute('''
-    CREATE TABLE IF NOT EXISTS tickets (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        customer_id INTEGER,
-        ticket_number INTEGER,
-        ticket_type TEXT,
-        garments TEXT,
-        colors TEXT,
-        textures TEXT,
-        patterns TEXT,
-        upcharges TEXT,
-        total_garments INTEGER,
-        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        date_created DATE,
-        date_due DATE,
-        total_price REAL,
-        created_by TEXT,
-        FOREIGN KEY (customer_id) REFERENCES customers(id)
-    )
-    ''')
-
-    
     conn.commit()
     conn.close()
 

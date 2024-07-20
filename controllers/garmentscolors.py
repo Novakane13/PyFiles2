@@ -12,13 +12,12 @@ class GarmentsColorsWindow(QMainWindow):
         self.ui.setupUi(self)
         
         # Connecting buttons to functions
-        self.ui.dcbutton.clicked.connect(self.delete_color)
+        self.ui.dcbutton.clicked.connect(self.close)
         self.ui.ccbutton.clicked.connect(self.choose_color)
         self.ui.scbutton.clicked.connect(self.save_color)
         self.ui.sibutton.clicked.connect(self.select_image)
         self.ui.avbutton.clicked.connect(self.add_variation)
         self.ui.sgbutton.clicked.connect(self.save_garment)
-        self.ui.dgbutton.clicked.connect(self.delete_garment)
         
         # Attributes to store selected color, image, and variations
         self.selected_color = None
@@ -67,6 +66,8 @@ class GarmentsColorsWindow(QMainWindow):
         for widget in widgets:
             widget.setStyleSheet(outline_style)
 
+
+            
     def save_color(self):
         color_name = self.ui.cninput.text().strip()
         if not color_name:
@@ -86,7 +87,6 @@ class GarmentsColorsWindow(QMainWindow):
 
         item = QListWidgetItem(color_name)
         item.setBackground(self.selected_color)
-        item.setData(Qt.UserRole, cursor.lastrowid)
         self.ui.sclist.addItem(item)
         self.ui.cninput.clear()
         self.selected_color = None
@@ -134,7 +134,6 @@ class GarmentsColorsWindow(QMainWindow):
         garment_item = QListWidgetItem(garment_name)
         if self.selected_image:
             garment_item.setIcon(QIcon(QPixmap(self.selected_image)))
-        garment_item.setData(Qt.UserRole, cgarment_id)
         self.ui.sglist.addItem(garment_item)
         
         # Clear input fields and reset attributes
@@ -150,14 +149,13 @@ class GarmentsColorsWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, color FROM colors")
+        cursor.execute("SELECT name, color FROM colors")
         saved_colors = cursor.fetchall()
         conn.close()
 
-        for color_id, color_name, color_value in saved_colors:
+        for color_name, color_value in saved_colors:
             item = QListWidgetItem(color_name)
             item.setBackground(QBrush(QColor(color_value)))
-            item.setData(Qt.UserRole, color_id)
             self.ui.sclist.addItem(item)
 
     def load_saved_garments(self):
@@ -165,55 +163,15 @@ class GarmentsColorsWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, image FROM cgarments")
+        cursor.execute("SELECT name, image FROM cgarments")
         saved_garments = cursor.fetchall()
         conn.close()
 
-        for garment_id, garment_name, image_path in saved_garments:
+        for garment_name, image_path in saved_garments:
             garment_item = QListWidgetItem(garment_name)
             if image_path:
                 garment_item.setIcon(QIcon(QPixmap(image_path)))
-            garment_item.setData(Qt.UserRole, garment_id)
             self.ui.sglist.addItem(garment_item)
-
-    def delete_garment(self):
-        selected_item = self.ui.sglist.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "Selection Error", "Please select a garment to delete.")
-            return
-        
-        garment_id = selected_item.data(Qt.UserRole)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM cgarments WHERE id = ?", (garment_id,))
-        cursor.execute("DELETE FROM cgarment_variations WHERE cgarment_id = ?", (garment_id,))
-        
-        conn.commit()
-        conn.close()
-        
-        self.ui.sglist.takeItem(self.ui.sglist.row(selected_item))
-
-    def delete_color(self):
-        selected_item = self.ui.sclist.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "Selection Error", "Please select a color to delete.")
-            return
-        
-        color_id = selected_item.data(Qt.UserRole)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM colors WHERE id = ?", (color_id,))
-        
-        conn.commit()
-        conn.close()
-        
-        self.ui.sclist.takeItem(self.ui.sclist.row(selected_item))
 
 if __name__ == "__main__":
     import sys

@@ -1,6 +1,6 @@
 import sqlite3
 import os
-from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QTreeWidgetItem, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from views.Test import Ui_TicketTypeCreation
@@ -12,7 +12,7 @@ class TicketTypeCreationWindow(QMainWindow):
         self.ui.setupUi(self)
 
         # Connecting buttons to functions
-        self.ui.deletettbutton.clicked.connect(self.delete_ticket_type)
+        self.ui.deletettbutton.clicked.connect(self.close)
         self.ui.savettbutton.clicked.connect(self.save_ticket_type)
 
         # Double-click events to add items to chosen lists
@@ -141,31 +141,6 @@ class TicketTypeCreationWindow(QMainWindow):
         self.ui.cupcharges.clear()
         self.ui.cdiscounts.clear()
         self.load_options()
-
-    def delete_ticket_type(self):
-        selected_item = self.ui.sttlist.currentItem()
-        if not selected_item:
-            QMessageBox.warning(self, "Selection Error", "Please select a ticket type to delete.")
-            return
-        
-        ticket_type_id = selected_item.data(Qt.UserRole)
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM ticket_types WHERE id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_garments WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_patterns WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_textures WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_colors WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_upcharges WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_discounts WHERE ticket_type_id = ?", (ticket_type_id,))
-        
-        conn.commit()
-        conn.close()
-        
-        self.ui.sttlist.takeItem(self.ui.sttlist.row(selected_item))
 
 if __name__ == "__main__":
     import sys
