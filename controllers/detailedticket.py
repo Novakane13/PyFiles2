@@ -1,31 +1,36 @@
+import sys
 import sqlite3
 import os
 from datetime import datetime, timedelta
 from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QTreeWidgetItem, QVBoxLayout, QWidget, QComboBox, QPushButton, QApplication
 from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtCore import Qt
+from PySide6.QtCore import Qt, Signal
 from views.Test import Ui_DetailedTicketCreation
 
 class DetailedTicketWindow(QMainWindow):
-    def __init__(self, customer_id=None, ticket_type=None):
+    ticket_completed = Signal(int)  # Signal to notify when a ticket is completed
+
+    def __init__(self, customer_id=None, ticket_type=None, ticket_type_id=None):
         super().__init__()
         self.ui = Ui_DetailedTicketCreation()
         self.ui.setupUi(self)
 
         self.customer_id = customer_id
         self.ticket_type = ticket_type
-        self.ticket_data = [{}, {}, {}]  # Initialize ticket data for three tabs
-        self.ticket_assigned = [False, False, False]  # Track if a ticket number has been assigned to each tab
+        self.ticket_type_id = ticket_type_id
+        self.ticket_data = [{} for _ in range(3)]  # Initialize ticket data for three tabs
+        self.ticket_assigned = [False for _ in range(3)]  # Track if a ticket number has been assigned to each tab
 
         self.ui.canceltbutton.clicked.connect(self.close)  # Close functionality
-        self.ui.ptandtbutton.clicked.connect(self.complete_ticket)  # Complete ticket functionality
+        self.ui.ptandtbutton.clicked.connect(self.complete_tickets)  # Complete ticket functionality
         self.ui.tctabs.currentChanged.connect(self.on_tab_change)  # Handle tab changes
 
+        self.populate_ticket_type_name()
         self.populate_widgets()
         self.populate_ticket_type_buttons()
 
         # Connect double click events for lists
-        self.ui.glist.itemDoubleClicked.connect(lambda item: self.add_garment(item))
+        self.ui.glist.itemDoubleClicked.connect(self.add_garment)
         
         # Connect single click events to select a garment
         self.ui.sglist.itemClicked.connect(self.select_garment)
@@ -38,11 +43,26 @@ class DetailedTicketWindow(QMainWindow):
         self.selected_garment_item = None
 
     def on_tab_change(self, index):
-        # When the tab changes, load the data for the current ticket tab
+        # When the tab changes load the data for the current ticket tab
         self.load_ticket_data(index)
 
+    def populate_ticket_type_name(self):
+        if self.ticket_type:
+            self.ui.ttname.setPlainText(self.ticket_type)
+        elif self.ticket_type_id:
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            db_path = os.path.join(project_root, 'models', 'pos_system.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT ticket_type_name FROM ticket_types WHERE id = ?", (self.ticket_type_id,))
+            ticket_type_name = cursor.fetchone()[0]
+            self.ui.ttname.setPlainText(ticket_type_name)  # Set ticket type name
+
+            conn.close()
+
     def populate_widgets(self):
-        if not self.ticket_type:
+        if not self.ticket_type_id:
             return
 
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -58,7 +78,7 @@ class DetailedTicketWindow(QMainWindow):
             LEFT JOIN cgarment_variations v ON g.id = v.cgarment_id
             LEFT JOIN prices p ON g.id = p.cgarment_id AND (v.id = p.variation_id OR p.variation_id IS NULL)
             WHERE ttg.ticket_type_id = ?
-        """, (self.ticket_type,))
+        """, (self.ticket_type_id,))
     
         garments = {}
         for row in cursor.fetchall():
@@ -87,7 +107,7 @@ class DetailedTicketWindow(QMainWindow):
             FROM colors c
             JOIN ticket_type_colors ttc ON c.id = ttc.colors_id
             WHERE ttc.ticket_type_id = ?
-        """, (self.ticket_type,))
+        """, (self.ticket_type_id,))
         colors = cursor.fetchall()
         for color in colors:
             item = QListWidgetItem(color[0])
@@ -100,7 +120,7 @@ class DetailedTicketWindow(QMainWindow):
             FROM patterns p
             JOIN ticket_type_patterns ttp ON p.id = ttp.patterns_id
             WHERE ttp.ticket_type_id = ?
-        """, (self.ticket_type,))
+        """, (self.ticket_type_id,))
         patterns = cursor.fetchall()
         for pattern in patterns:
             item = QListWidgetItem(pattern[0])
@@ -113,7 +133,7 @@ class DetailedTicketWindow(QMainWindow):
             FROM textures t
             JOIN ticket_type_textures ttt ON t.id = ttt.textures_id
             WHERE ttt.ticket_type_id = ?
-        """, (self.ticket_type,))
+        """, (self.ticket_type_id,))
         textures = cursor.fetchall()
         for texture in textures:
             item = QListWidgetItem(texture[0])
@@ -126,7 +146,7 @@ class DetailedTicketWindow(QMainWindow):
             FROM upcharges u
             JOIN ticket_type_upcharges ttu ON u.id = ttu.upcharges_id
             WHERE ttu.ticket_type_id = ?
-        """, (self.ticket_type,))
+        """, (self.ticket_type_id,))
         upcharges = cursor.fetchall()
         for upcharge in upcharges:
             item = QListWidgetItem(upcharge[0])
@@ -153,8 +173,9 @@ class DetailedTicketWindow(QMainWindow):
 
         conn.close()
 
-    def load_ticket_type(self, ticket_type):
-        self.ticket_type = ticket_type
+    def load_ticket_type(self, ticket_type_id):
+        self.ticket_type_id = ticket_type_id
+        self.populate_ticket_type_name()
         self.populate_widgets()
 
     def load_ticket_data(self, index):
@@ -169,13 +190,51 @@ class DetailedTicketWindow(QMainWindow):
                 item.setIcon(0, QIcon(QPixmap(item_data['icon'])))
                 item.setText(0, str(item_data['quantity']))
 
-    def create_ticket(self, index, ticket_type):
-        if not self.ticket_assigned[index]:
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-            db_path = os.path.join(project_root, 'models', 'pos_system.db')
-            conn = sqlite3.connect(db_path)
-            cursor = conn.cursor()
+    def add_garment(self, item):
+        garment_name = item.text()
+        quantity = self.ui.piecesinput.value()
+        colors = self.ui.clist.selectedItems()
+        textures = self.ui.tlist.selectedItems()
+        patterns = self.ui.plist.selectedItems()
+        upcharges = self.ui.ulist.selectedItems()
+        icon_path = "path_to_default_image.png"  # Update with actual path if available
 
+        garment_item = QTreeWidgetItem()
+        garment_item.setText(0, garment_name)
+        garment_item.setText(1, str(quantity))
+        garment_data = {
+            'garment_name': garment_name,
+            'quantity': quantity,
+            'colors': [color.text() for color in colors],
+            'textures': [texture.text() for texture in textures],
+            'patterns': [pattern.text() for pattern in patterns],
+            'upcharges': [upcharge.text() for upcharge in upcharges],
+            'icon': icon_path
+        }
+        garment_item.setData(0, Qt.UserRole, garment_data)
+        garment_item.setIcon(0, QIcon(QPixmap(icon_path)))
+
+        self.get_current_garment_list().addTopLevelItem(garment_item)
+        self.selected_garment_item = garment_item
+
+        self.save_garment_to_db(garment_name, quantity, [color.text() for color in colors], [texture.text() for texture in textures], [pattern.text() for pattern in patterns], [upcharge.text() for upcharge in upcharges], icon_path)
+
+        garment_item.setData(0, Qt.UserRole, garment_data)
+
+        self.get_current_garment_list().addTopLevelItem(garment_item)
+        self.selected_garment_item = garment_item
+
+        self.save_garment_to_db(garment_name, quantity, icon_path)
+
+    def save_garment_to_db(self, garment_name, quantity, colors, textures, patterns, upcharges, icon_path):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        current_index = self.ui.tctabs.currentIndex()
+
+        if not self.ticket_assigned[current_index]:
             # Fetch the next ticket number
             cursor.execute("SELECT MAX(ticket_number) FROM ticket_numbers")
             max_ticket_number = cursor.fetchone()[0]
@@ -183,107 +242,29 @@ class DetailedTicketWindow(QMainWindow):
 
             cursor.execute("INSERT INTO ticket_numbers (ticket_number) VALUES (?)", (next_ticket_number,))
             conn.commit()
-            conn.close()
-
-            self.ticket_data[index]['ticket_number'] = next_ticket_number
-            self.ticket_data[index]['ticket_type'] = ticket_type
-            self.ticket_assigned[index] = True
-            self.ui.tctabs.setTabText(index, f"Ticket {next_ticket_number}")
-            self.ui.ttname.setPlainText(ticket_type)
-
-    def create_ticket_entry(self):
-        current_index = self.ui.tctabs.currentIndex()
-        ticket_data = self.ticket_data[current_index]
-
-        selected_garment = self.ui.glist.currentItem().text() if self.ui.glist.currentItem() else ""
-        selected_color = self.ui.clist.currentItem().text() if self.ui.clist.currentItem() else ""
-        selected_pattern = self.ui.plist.currentItem().text() if self.ui.plist.currentItem() else ""
-        selected_texture = self.ui.tlist.currentItem().text() if self.ui.tlist.currentItem() else ""
-        selected_upcharges = [self.ui.ulist.item(i).text() for i in range(self.ui.ulist.count()) if self.ui.ulist.item(i).isSelected()]
-        quantity = self.ui.piecesinput.value()
-
-        details = f"{selected_color}, {selected_pattern}, {selected_texture}, {', '.join(selected_upcharges)}"
-        icon_path = "path_to_default_image.png"  # Update with actual path if available
-
-        item_data = {
-            'garment': selected_garment,
-            'details': details,
-            'icon': icon_path,
-            'quantity': quantity
-        }
-
-        if 'items' not in ticket_data:
-            ticket_data['items'] = []
-
-        ticket_data['items'].append(item_data)
-        self.load_ticket_data(current_index)
-
-    def complete_ticket(self):
-        current_index = self.ui.tctabs.currentIndex()
-        ticket_data = self.ticket_data[current_index]
-
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        garments = [item['garment'] for item in ticket_data['items']]
-        colors = [option for item in ticket_data['items'] for option in item.get('colors', [])]
-        textures = [option for item in ticket_data['items'] for option in item.get('textures', [])]
-        patterns = [option for item in ticket_data['items'] for option in item.get('patterns', [])]
-        upcharges = [option for item in ticket_data['items'] for option in item.get('upcharges', [])]
-        total_garments = sum(item['quantity'] for item in ticket_data['items'])
-        total_price = sum(float(item.get('price', 0)) for item in ticket_data['items'])  # Adjust based on actual pricing logic
+            self.ticket_data[current_index]['ticket_number'] = next_ticket_number
+            self.ticket_data[current_index]['ticket_type'] = self.ticket_type_id
+            self.ticket_assigned[current_index] = True
 
         cursor.execute("""
-            INSERT INTO tickets (customer_id, ticket_number, ticket_type, garments, colors, textures, patterns, upcharges, total_garments, date_created, date_due, total_price, created_by)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO tickets (customer_id, ticket_number, ticket_type, garments, colors, textures, patterns, upcharges, total_garments, date_created, date_due)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             self.customer_id,
-            ticket_data['ticket_number'],
-            ticket_data['ticket_type'],
-            ', '.join(garments),
+            self.ticket_data[current_index]['ticket_number'],
+            self.ticket_data[current_index]['ticket_type'],
+            garment_name,
             ', '.join(colors),
             ', '.join(textures),
             ', '.join(patterns),
             ', '.join(upcharges),
-            total_garments,
+            quantity,
             datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-            (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'),  # Example due date logic
-            total_price,
-            self.created_by
+            (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S')
         ))
 
         conn.commit()
         conn.close()
-
-        print(f"Completed ticket: {ticket_data}")
-        self.close()
-
-    def add_garment(self, item):
-        garment_name = item.text()
-        quantity = self.ui.piecesinput.value()
-        icon_path = "path_to_default_image.png"  # Update with actual path if available
-
-        garment_item = QTreeWidgetItem()
-        garment_item.setText(0, garment_name)
-        garment_item.setText(1, str(quantity))
-        garment_item.setIcon(0, QIcon(QPixmap(icon_path)))
-
-        garment_data = {
-            'garment_name': garment_name,
-            'quantity': quantity,
-            'colors': [],
-            'textures': [],
-            'patterns': [],
-            'upcharges': [],
-            'icon': icon_path
-        }
-
-        garment_item.setData(0, Qt.UserRole, garment_data)
-
-        self.get_current_garment_list().addTopLevelItem(garment_item)
-        self.selected_garment_item = garment_item
 
     def select_garment(self, item):
         self.selected_garment_item = item
@@ -295,6 +276,7 @@ class DetailedTicketWindow(QMainWindow):
         option_name = item.text()
         garment_data = self.selected_garment_item.data(0, Qt.UserRole)
 
+        # Check limits for different option types
         if option_type == 'colors' and len(garment_data['colors']) >= 3:
             return
         if option_type == 'textures' and len(garment_data['textures']) >= 2:
@@ -304,9 +286,29 @@ class DetailedTicketWindow(QMainWindow):
         if option_type == 'upcharges' and len(garment_data['upcharges']) >= 3:
             return
 
+        # Add the selected option to the garment data
         garment_data[option_type].append(option_name)
         self.selected_garment_item.setData(0, Qt.UserRole, garment_data)
         self.update_garment_details(self.selected_garment_item)
+        self.save_option_to_db(option_name, option_type)
+
+    def save_option_to_db(self, option_name, option_type):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        current_index = self.ui.tctabs.currentIndex()
+        ticket_number = self.ticket_data[current_index]['ticket_number']
+
+        cursor.execute(f"""
+            UPDATE tickets
+            SET {option_type} = {option_type} || ' ' || ?
+            WHERE ticket_number = ?
+        """, (option_name, ticket_number))
+
+        conn.commit()
+        conn.close()
 
     def add_selected_options_to_garment(self):
         if self.selected_garment_item is None:
@@ -334,10 +336,10 @@ class DetailedTicketWindow(QMainWindow):
     def update_garment_details(self, garment_item):
         garment_data = garment_item.data(0, Qt.UserRole)
         details = (
-            f"Colors: {', '.join(garment_data['colors'])}\n"
-            f"Textures: {', '.join(garment_data['textures'])}\n"
-            f"Patterns: {', '.join(garment_data['patterns'])}\n"
-            f"Upcharges: {', '.join(garment_data['upcharges'])}"
+            f"Colors: {' '.join(garment_data['colors'])}\n"
+            f"Textures: {' '.join(garment_data['textures'])}\n"
+            f"Patterns: {' '.join(garment_data['patterns'])}\n"
+            f"Upcharges: {' '.join(garment_data['upcharges'])}"
         )
         garment_item.setText(2, details)
 
@@ -351,10 +353,76 @@ class DetailedTicketWindow(QMainWindow):
             return self.ui.sglist_3
         return None
 
+    def complete_tickets(self):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        for index, ticket_data in enumerate(self.ticket_data):
+            current_garment_list = self.get_current_garment_list()
+            if current_garment_list.topLevelItemCount() == 0:
+                continue  # Skip if no items in the list
+
+            if not self.ticket_assigned[index]:
+                # Fetch the next ticket number
+                cursor.execute("SELECT MAX(ticket_number) FROM ticket_numbers")
+                max_ticket_number = cursor.fetchone()[0]
+                next_ticket_number = max_ticket_number + 1 if max_ticket_number else 1
+
+                cursor.execute("INSERT INTO ticket_numbers (ticket_number) VALUES (?)", (next_ticket_number,))
+                conn.commit()
+                self.ticket_data[index]['ticket_number'] = next_ticket_number
+                self.ticket_data[index]['ticket_type'] = self.ticket_type_id
+                self.ticket_assigned[index] = True
+
+            garments = []
+            colors = []
+            textures = []
+            patterns = []
+            upcharges = []
+            total_garments = 0
+            total_price = 0.0  # Adjust based on actual pricing logic
+
+            for i in range(current_garment_list.topLevelItemCount()):
+                item = current_garment_list.topLevelItem(i)
+                garment_data = item.data(0, Qt.UserRole)
+                garments.append(garment_data['garment_name'])
+                colors.extend(garment_data['colors'])
+                textures.extend(garment_data['textures'])
+                patterns.extend(garment_data['patterns'])
+                upcharges.extend(garment_data['upcharges'])
+                total_garments += garment_data['quantity']
+                total_price += float(garment_data.get('price', 0))  # Adjust based on actual pricing logic
+
+            cursor.execute("""
+                INSERT INTO tickets (customer_id, ticket_number, ticket_type, garments, colors, textures, patterns, upcharges, total_garments, date_created, date_due, total_price)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                self.customer_id,
+                self.ticket_data[index]['ticket_number'],
+                self.ticket_data[index]['ticket_type'],
+                ' '.join(garments),
+                ' '.join(colors),
+                ' '.join(textures),
+                ' '.join(patterns),
+                ' '.join(upcharges),
+                total_garments,
+                datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
+                (datetime.now() + timedelta(days=7)).strftime('%Y-%m-%d %H:%M:%S'),  # Example due date logic
+                total_price
+            ))
+
+            conn.commit()
+
+            print(f"Completed ticket: {self.ticket_data[index]}")
+            self.ticket_completed.emit(self.customer_id)
+
+        conn.close()
+        self.close()
+
 if __name__ == "__main__":
-    import sys
-    
     app = QApplication(sys.argv)
-    window = DetailedTicketWindow()
-    window.show()
+    detailed_ticket_window = DetailedTicketWindow(customer_id=1, ticket_type="Dry Clean", ticket_type_id=1)
+    detailed_ticket_window.show()
     sys.exit(app.exec())

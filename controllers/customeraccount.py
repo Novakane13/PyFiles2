@@ -83,6 +83,8 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.PhoneNumberInput.setText(customer_data.get("phone_number", ""))
         self.ui.NotesInput.setPlainText(customer_data.get("notes", ""))
         self.customer_id1 = customer_data.get("id", None)
+        if self.customer_id1:
+            self.load_tickets(self.customer_id1, self.ui.ctlist)
 
     def load_customer_data_page2(self, customer_data):
         self.ui.FirstNameInput_2.setText(customer_data.get("first_name", ""))
@@ -90,6 +92,8 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.PhoneNumberInput_2.setText(customer_data.get("phone_number", ""))
         self.ui.NotesInput_2.setPlainText(customer_data.get("notes", ""))
         self.customer_id2 = customer_data.get("id", None)
+        if self.customer_id2:
+            self.load_tickets(self.customer_id2, self.ui.ctlist_2)
 
     def clear_page1(self):
         self.ui.FirstNameInput.clear()
@@ -197,16 +201,16 @@ class CustomerAccountWindow(QMainWindow):
         self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id2)
         self.quick_ticket_window.show()
 
-    def open_detailed_ticket_page(self, customer_id, ticket_type):
-        print(f"Opening Detailed Ticket for customer_id: {customer_id}, ticket_type: {ticket_type}")
-        self.detailed_ticket_window = DetailedTicketWindow(customer_id=customer_id, ticket_type=ticket_type)
+    def open_detailed_ticket_page(self, customer_id, ticket_type, ticket_type_id):
+        self.detailed_ticket_window = DetailedTicketWindow(customer_id=customer_id, ticket_type=ticket_type, ticket_type_id=ticket_type_id)
+        self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         self.detailed_ticket_window.show()
 
-    def open_detailed_ticket_page1(self, ticket_type):
-        self.open_detailed_ticket_page(self.customer_id1, ticket_type)
+    def open_detailed_ticket_page1(self, ticket_type, ticket_type_id):
+        self.open_detailed_ticket_page(self.customer_id1, ticket_type, ticket_type_id)
 
-    def open_detailed_ticket_page2(self, ticket_type):
-        self.open_detailed_ticket_page(self.customer_id2, ticket_type)
+    def open_detailed_ticket_page2(self, ticket_type, ticket_type_id):
+        self.open_detailed_ticket_page(self.customer_id2, ticket_type, ticket_type_id)
 
     def populate_ticket_type_buttons(self):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -225,7 +229,7 @@ class CustomerAccountWindow(QMainWindow):
 
         for idx, (ticket_type_id, ticket_type_name) in enumerate(ticket_types):
             button1 = QPushButton(ticket_type_name)
-            button1.clicked.connect(lambda checked, tt_id=ticket_type_id: self.open_detailed_ticket_page1(tt_id))
+            button1.clicked.connect(lambda checked, tt_name=ticket_type_name, tt_id=ticket_type_id: self.open_detailed_ticket_page1(tt_name, tt_id))
             layout1.addWidget(button1, row1, col1)
             col1 += 1
             if col1 > 2:  # Move to next row after 3 columns
@@ -233,7 +237,7 @@ class CustomerAccountWindow(QMainWindow):
                 row1 += 1
 
             button2 = QPushButton(ticket_type_name)
-            button2.clicked.connect(lambda checked, tt_id=ticket_type_id: self.open_detailed_ticket_page2(tt_id))
+            button2.clicked.connect(lambda checked, tt_name=ticket_type_name, tt_id=ticket_type_id: self.open_detailed_ticket_page2(tt_name, tt_id))
             layout2.addWidget(button2, row2, col2)
             col2 += 1
             if col2 > 2:  # Move to next row after 3 columns
@@ -241,6 +245,41 @@ class CustomerAccountWindow(QMainWindow):
                 row2 += 1
 
         conn.close()
+
+    def load_tickets(self, customer_id, ctlist):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        cursor.execute("""
+            SELECT t.ticket_number, t.ticket_type, t.date_created, t.date_due, t.total_price, t.status
+            FROM tickets t
+            WHERE t.customer_id = ?
+        """, (customer_id,))
+
+        tickets = cursor.fetchall()
+        conn.close()
+
+        ctlist.clear()
+
+        for ticket in tickets:
+            ticket_number, ticket_type, date_created, date_due, total_price, status = ticket
+            item = QTreeWidgetItem([
+                str(ticket_number),
+                ticket_type,
+                date_created,
+                date_due,
+                f"${total_price:.2f}",
+                status
+            ])
+            ctlist.addTopLevelItem(item)
+
+    def on_ticket_completed(self, customer_id):
+        if customer_id == self.customer_id1:
+            self.load_tickets(self.customer_id1, self.ui.ctlist)
+        elif customer_id == self.customer_id2:
+            self.load_tickets(self.customer_id2, self.ui.ctlist_2)
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
@@ -261,3 +300,4 @@ if __name__ == "__main__":
     account_window = CustomerAccountWindow(customer_data1, customer_data2)
     account_window.show()
     sys.exit(app.exec())
+

@@ -135,6 +135,7 @@ def initialize_database():
         textures TEXT,
         patterns TEXT,
         upcharges TEXT,
+        status TEXT,
         total_garments INTEGER,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         date_created DATE,
