@@ -31,7 +31,7 @@ class GarmentsColorsWindow(QMainWindow):
     def choose_color(self):
         color = QColorDialog.getColor()
         if color.isValid():
-            self.selected_color = color
+            self.selected_color = color.name()
             self.ui.ccbutton.setStyleSheet(f"background-color: {color.name()}")
             self.ui.ccbutton.setText("Color Selected")
             self.apply_outline_color(color)
@@ -80,18 +80,24 @@ class GarmentsColorsWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO colors (name, color) VALUES (?, ?)", (color_name, self.selected_color.name()))
-        conn.commit()
-        conn.close()
 
-        item = QListWidgetItem(color_name)
-        item.setBackground(self.selected_color)
-        item.setData(Qt.UserRole, cursor.lastrowid)
-        self.ui.sclist.addItem(item)
-        self.ui.cninput.clear()
-        self.selected_color = None
-        self.ui.ccbutton.setStyleSheet("")
-        self.ui.ccbutton.setText("Choose Color")
+        try:
+            cursor.execute("INSERT INTO Colors (name, value) VALUES (?, ?)", (color_name, self.selected_color))
+            conn.commit()
+
+            item = QListWidgetItem(color_name)
+            item.setBackground(QColor(self.selected_color))
+            item.setData(Qt.UserRole, cursor.lastrowid)
+            self.ui.sclist.addItem(item)
+            
+            self.ui.cninput.clear()
+            self.selected_color = None
+            self.ui.ccbutton.setStyleSheet("")
+            self.ui.ccbutton.setText("Choose Color")
+        except sqlite3.IntegrityError as e:
+            QMessageBox.warning(self, "Database Error", str(e))
+        finally:
+            conn.close()
 
     def select_image(self):
         file_name, _ = QFileDialog.getOpenFileName(self, "Select Image", "", "Image Files (*.png *.jpg *.bmp)")
@@ -117,62 +123,70 @@ class GarmentsColorsWindow(QMainWindow):
         if not garment_name:
             QMessageBox.warning(self, "Input Error", "Please enter a garment name.")
             return
-        
+        if not self.selected_image:
+            QMessageBox.warning(self, "Input Error", "Please select an image for the garment.")
+            return
+
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO cgarments (name, image) VALUES (?, ?)", (garment_name, self.selected_image))
-        cgarment_id = cursor.lastrowid
-        
-        for variation in self.variations:
-            cursor.execute("INSERT INTO cgarment_variations (cgarment_id, variation) VALUES (?, ?)", (cgarment_id, variation))
-        
-        conn.commit()
-        conn.close()
 
-        garment_item = QListWidgetItem(garment_name)
-        if self.selected_image:
+        try:
+            cursor.execute("INSERT INTO Garments (name, image_path) VALUES (?, ?)", (garment_name, self.selected_image))
+            garment_id = cursor.lastrowid
+
+            for variation in self.variations:
+                cursor.execute("INSERT INTO GarmentVariants (garment_id, name, price) VALUES (?, ?, 0)", (garment_id, variation))
+
+            conn.commit()
+
+            garment_item = QListWidgetItem(garment_name)
             garment_item.setIcon(QIcon(QPixmap(self.selected_image)))
-        garment_item.setData(Qt.UserRole, cgarment_id)
-        self.ui.sglist.addItem(garment_item)
-        
-        # Clear input fields and reset attributes
-        self.ui.gninput.clear()
-        self.ui.avlist.clear()
-        self.ui.ImageLabel.clear()
-        self.selected_image = None
-        self.variations = []
-        self.ui.sibutton.setText("Select Image")
+            garment_item.setData(Qt.UserRole, garment_id)
+            self.ui.sglist.addItem(garment_item)
+
+            # Clear input fields and reset attributes
+            self.ui.gninput.clear()
+            self.ui.avlist.clear()
+            self.ui.ImageLabel.clear()
+            self.selected_image = None
+            self.variations = []
+            self.ui.sibutton.setText("Select Image")
+        except sqlite3.IntegrityError as e:
+            QMessageBox.warning(self, "Database Error", str(e))
+        finally:
+            conn.close()
 
     def load_saved_colors(self):
+        self.ui.sclist.clear()
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, color FROM colors")
+        cursor.execute("SELECT id, name, value FROM Colors")
         saved_colors = cursor.fetchall()
         conn.close()
 
         for color_id, color_name, color_value in saved_colors:
             item = QListWidgetItem(color_name)
-            item.setBackground(QBrush(QColor(color_value)))
+            item.setBackground(QColor(color_value))
             item.setData(Qt.UserRole, color_id)
             self.ui.sclist.addItem(item)
 
     def load_saved_garments(self):
+        self.ui.sglist.clear()
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT id, name, image FROM cgarments")
+        cursor.execute("SELECT id, name, image_path FROM Garments")
         saved_garments = cursor.fetchall()
         conn.close()
 
         for garment_id, garment_name, image_path in saved_garments:
             garment_item = QListWidgetItem(garment_name)
-            if image_path:
-                garment_item.setIcon(QIcon(QPixmap(image_path)))
+            garment_item.setIcon(QIcon(QPixmap(image_path)))
             garment_item.setData(Qt.UserRole, garment_id)
             self.ui.sglist.addItem(garment_item)
 
@@ -188,8 +202,8 @@ class GarmentsColorsWindow(QMainWindow):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM cgarments WHERE id = ?", (garment_id,))
-        cursor.execute("DELETE FROM cgarment_variations WHERE cgarment_id = ?", (garment_id,))
+        cursor.execute("DELETE FROM Garments WHERE id = ?", (garment_id,))
+        cursor.execute("DELETE FROM GarmentVariants WHERE garment_id = ?", (garment_id,))
         
         conn.commit()
         conn.close()
@@ -208,7 +222,7 @@ class GarmentsColorsWindow(QMainWindow):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM colors WHERE id = ?", (color_id,))
+        cursor.execute("DELETE FROM Colors WHERE id = ?", (color_id,))
         
         conn.commit()
         conn.close()

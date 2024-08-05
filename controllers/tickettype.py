@@ -24,6 +24,7 @@ class TicketTypeCreationWindow(QMainWindow):
         self.ui.glist.itemDoubleClicked.connect(lambda item: self.add_to_list(item, self.ui.cglist))
 
         self.load_options()
+        self.load_ticket_types()
 
     def load_options(self):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -31,60 +32,65 @@ class TicketTypeCreationWindow(QMainWindow):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        cursor.execute("SELECT id, name, color FROM colors")
+        cursor.execute("SELECT id, name, value FROM Colors")
         colors = cursor.fetchall()
-        for color_id, name, color in colors:
+        for color_id, name, value in colors:
             item = QListWidgetItem(name)
-            item.setBackground(QColor(color))
-            item.setData(Qt.UserRole, color_id)
+            item.setBackground(QColor(value))
+            item.setData(Qt.UserRole, (color_id, value))
             self.ui.clist.addItem(item)
 
-        cursor.execute("SELECT id, name FROM patterns")
+        cursor.execute("SELECT id, name FROM Patterns")
         patterns = cursor.fetchall()
         for pattern_id, pattern in patterns:
             item = QListWidgetItem(pattern)
             item.setData(Qt.UserRole, pattern_id)
             self.ui.plist.addItem(item)
 
-        cursor.execute("SELECT id, name FROM textures")
+        cursor.execute("SELECT id, name FROM Textures")
         textures = cursor.fetchall()
         for texture_id, texture in textures:
             item = QListWidgetItem(texture)
             item.setData(Qt.UserRole, texture_id)
             self.ui.tlist.addItem(item)
 
-        cursor.execute("SELECT id, name, amount FROM upcharges")
+        cursor.execute("SELECT id, description, price FROM Upcharges")
         upcharges = cursor.fetchall()
-        for upcharge_id, name, amount in upcharges:
-            item = QListWidgetItem(f"{name} - ${amount}")
+        for upcharge_id, description, price in upcharges:
+            item = QListWidgetItem(f"{description} - ${price:.2f}")
             item.setData(Qt.UserRole, upcharge_id)
             self.ui.ulist.addItem(item)
 
-        cursor.execute("SELECT id, name, percent, amount FROM discounts")
+        cursor.execute("SELECT id, name FROM Discounts")
         discounts = cursor.fetchall()
-        for discount_id, name, percent, amount in discounts:
-            if percent is not None:
-                item = QListWidgetItem(f"{name} - {percent}% off")
-            else:
-                item = QListWidgetItem(f"{name} - ${amount} off")
+        for discount_id, name in discounts:
+            item = QListWidgetItem(name)
             item.setData(Qt.UserRole, discount_id)
             self.ui.dlist.addItem(item)
 
-        cursor.execute("SELECT id, name FROM cgarments")
+        cursor.execute("SELECT id, name FROM Garments")
         garments = cursor.fetchall()
         for garment_id, garment in garments:
             item = QListWidgetItem(garment)
             item.setData(Qt.UserRole, garment_id)
             self.ui.glist.addItem(item)
 
-        cursor.execute("SELECT id, ticket_type_name FROM ticket_types")
+        conn.close()
+
+    def load_ticket_types(self):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT id, name FROM TicketTypes")
         ticket_types = cursor.fetchall()
+        conn.close()
+        
         for ticket_type_id, ticket_type_name in ticket_types:
             item = QListWidgetItem(ticket_type_name)
             item.setData(Qt.UserRole, ticket_type_id)
             self.ui.sttlist.addItem(item)
-
-        conn.close()
 
     def add_to_list(self, item, target_list):
         existing_items = [target_list.item(i).text() for i in range(target_list.count())]
@@ -100,12 +106,15 @@ class TicketTypeCreationWindow(QMainWindow):
             QMessageBox.warning(self, "Input Error", "Please enter a ticket type name.")
             return
 
-        chosen_garments = [self.ui.cglist.item(i).data(Qt.UserRole) for i in range(self.ui.cglist.count())]
-        chosen_patterns = [self.ui.cpatterns.item(i).data(Qt.UserRole) for i in range(self.ui.cpatterns.count())]
-        chosen_textures = [self.ui.ctextures.item(i).data(Qt.UserRole) for i in range(self.ui.ctextures.count())]
-        chosen_colors = [self.ui.cclist.item(i).data(Qt.UserRole) for i in range(self.ui.cclist.count())]
-        chosen_upcharges = [self.ui.cupcharges.item(i).data(Qt.UserRole) for i in range(self.ui.cupcharges.count())]
-        chosen_discounts = [self.ui.cdiscounts.item(i).data(Qt.UserRole) for i in range(self.ui.cdiscounts.count())]
+        def get_item_ids(widget):
+            return [widget.item(i).data(Qt.UserRole) if isinstance(widget.item(i).data(Qt.UserRole), int) else widget.item(i).data(Qt.UserRole)[0] for i in range(widget.count())]
+
+        chosen_garments = get_item_ids(self.ui.cglist)
+        chosen_patterns = get_item_ids(self.ui.cpatterns)
+        chosen_textures = get_item_ids(self.ui.ctextures)
+        chosen_colors = get_item_ids(self.ui.cclist)
+        chosen_upcharges = get_item_ids(self.ui.cupcharges)
+        chosen_discounts = get_item_ids(self.ui.cdiscounts)
 
         if not (chosen_garments or chosen_patterns or chosen_textures or chosen_colors or chosen_upcharges or chosen_discounts):
             QMessageBox.warning(self, "Input Error", "Please select at least one option.")
@@ -115,7 +124,7 @@ class TicketTypeCreationWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO ticket_types (ticket_type_name) VALUES (?)", (ticket_type_name,))
+        cursor.execute("INSERT INTO TicketTypes (name) VALUES (?)", (ticket_type_name,))
         ticket_type_id = cursor.lastrowid
 
         def insert_into_table(table_name, ticket_type_id, item_ids):
@@ -132,7 +141,7 @@ class TicketTypeCreationWindow(QMainWindow):
         conn.commit()
         conn.close()
 
-        self.ui.sttlist.addItem(ticket_type_name)
+        self.ui.sttlist.addItem(QListWidgetItem(ticket_type_name))
         self.ui.ttinput.clear()
         self.ui.cglist.clear()
         self.ui.cpatterns.clear()
@@ -140,7 +149,9 @@ class TicketTypeCreationWindow(QMainWindow):
         self.ui.cclist.clear()
         self.ui.cupcharges.clear()
         self.ui.cdiscounts.clear()
-        self.load_options()
+        self.ui.sttlist.clear()  # Clear the list to prevent duplicates
+        self.load_ticket_types()  # Reload the list to reflect the new ticket type
+
 
     def delete_ticket_type(self):
         selected_item = self.ui.sttlist.currentItem()
@@ -154,7 +165,7 @@ class TicketTypeCreationWindow(QMainWindow):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         
-        cursor.execute("DELETE FROM ticket_types WHERE id = ?", (ticket_type_id,))
+        cursor.execute("DELETE FROM TicketTypes WHERE id = ?", (ticket_type_id,))
         cursor.execute("DELETE FROM ticket_type_garments WHERE ticket_type_id = ?", (ticket_type_id,))
         cursor.execute("DELETE FROM ticket_type_patterns WHERE ticket_type_id = ?", (ticket_type_id,))
         cursor.execute("DELETE FROM ticket_type_textures WHERE ticket_type_id = ?", (ticket_type_id,))

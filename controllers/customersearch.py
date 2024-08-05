@@ -1,7 +1,7 @@
 import sys
 import sqlite3
 import os
-from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView, QPushButton, QLineEdit
+from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView
 from PySide6.QtCore import Signal, Slot, Qt
 from views.Test import Ui_CustomerSearch
 
@@ -14,27 +14,21 @@ class CustomerSearch(QDialog, Ui_CustomerSearch):
         self.setupUi(self)
         self.target_page = target_page
 
-        # Hide the last name and phone number input fields
-        self.lnsearch.setVisible(False)
-        self.lnlabel.setVisible(False)
-        self.pnsearch.setVisible(False)
-        self.pnlabel.setVisible(False)
-        
-        # Change the label of the first name input to a general search label
-        self.fnlabel.setText("Search:")
-
+        # Connect buttons to their functions
         self.searchbutton.clicked.connect(self.search_customers)
         self.ncbutton.clicked.connect(self.create_new_customer)
+        self.closebutton.clicked.connect(self.close)
+        self.clearresultsbutton.clicked.connect(self.clear_results)
         self.resultslist.itemDoubleClicked.connect(self.select_customer)
         
         # Connect Enter key press for the search input and result selection
-        self.fnsearch.returnPressed.connect(self.search_customers)
+        self.searchinput.returnPressed.connect(self.search_customers)
         self.resultslist.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.resultslist.setSelectionMode(QAbstractItemView.SingleSelection)
         self.resultslist.keyPressEvent = self.resultslist_key_press_event
 
         # Set focus to the search input field when the dialog opens
-        self.fnsearch.setFocus()
+        self.searchinput.setFocus()
 
         # Remove default status from the "New Customer" button
         self.ncbutton.setAutoDefault(False)
@@ -54,14 +48,14 @@ class CustomerSearch(QDialog, Ui_CustomerSearch):
         WHERE first_name LIKE ? OR last_name LIKE ? OR phone_number LIKE ?
         """
         
-        search_term = f"%{self.fnsearch.text()}%"
+        search_term = f"%{self.searchinput.text()}%"
         cursor.execute(query, (search_term, search_term, search_term))
         search_results = cursor.fetchall()
         
         self.resultslist.clear()
         for result in search_results:
             item = QTreeWidgetItem([f"{result[1]} {result[2]}", result[3]])
-            item.setData(0, 1, {
+            item.setData(0, Qt.UserRole, {
                 "id": result[0],
                 "first_name": result[1],
                 "last_name": result[2],
@@ -74,7 +68,7 @@ class CustomerSearch(QDialog, Ui_CustomerSearch):
 
     @Slot(QTreeWidgetItem, int)
     def select_customer(self, item, column):
-        customer_data = item.data(0, 1)
+        customer_data = item.data(0, Qt.UserRole)
         self.customer_selected.emit(customer_data)
         self.close()
 
@@ -89,6 +83,10 @@ class CustomerSearch(QDialog, Ui_CustomerSearch):
     def create_new_customer(self):
         self.new_customer.emit()
         self.close()
+
+    def clear_results(self):
+        self.resultslist.clear()
+        self.searchinput.clear()
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

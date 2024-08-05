@@ -40,7 +40,7 @@ class TicketOptionsWindow(QMainWindow):
             db_path = os.path.join(project_root, 'models', 'pos_system.db')
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO textures (name, image) VALUES (?, ?)", (name, self.selected_image))
+            cursor.execute("INSERT INTO textures (name, image_path) VALUES (?, ?)", (name, self.selected_image))
             texture_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -64,7 +64,7 @@ class TicketOptionsWindow(QMainWindow):
             db_path = os.path.join(project_root, 'models', 'pos_system.db')
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO patterns (name, image) VALUES (?, ?)", (name, self.selected_image))
+            cursor.execute("INSERT INTO patterns (name, image_path) VALUES (?, ?)", (name, self.selected_image))
             pattern_id = cursor.lastrowid
             conn.commit()
             conn.close()
@@ -82,19 +82,19 @@ class TicketOptionsWindow(QMainWindow):
             self.show_error_message("Please enter a name for the pattern.")
 
     def save_upcharge(self):
-        name = self.ui.uinput.text().strip()
-        amount = self.ui.uamountinput.text().strip()
-        if name and amount:
+        description = self.ui.uinput.text().strip()
+        price = self.ui.uamountinput.text().strip()
+        if description and price:
             project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
             db_path = os.path.join(project_root, 'models', 'pos_system.db')
             conn = sqlite3.connect(db_path)
             cursor = conn.cursor()
-            cursor.execute("INSERT INTO upcharges (name, amount) VALUES (?, ?)", (name, amount))
+            cursor.execute("INSERT INTO upcharges (description, price) VALUES (?, ?)", (description, price))
             upcharge_id = cursor.lastrowid
             conn.commit()
             conn.close()
             
-            item = QListWidgetItem(f"{name} - ${amount}")
+            item = QListWidgetItem(f"{description} - ${price}")
             item.setData(Qt.UserRole, upcharge_id)
             self.ui.ulist.addItem(item)
             self.ui.uinput.clear()
@@ -147,7 +147,7 @@ class TicketOptionsWindow(QMainWindow):
         cursor = conn.cursor()
 
         # Load saved textures
-        cursor.execute("SELECT id, name, image FROM textures")
+        cursor.execute("SELECT id, name, image_path FROM textures")
         textures = cursor.fetchall()
         for texture_id, texture_name, image_path in textures:
             item = QListWidgetItem(texture_name)
@@ -157,7 +157,7 @@ class TicketOptionsWindow(QMainWindow):
             self.ui.tlist.addItem(item)
 
         # Load saved patterns
-        cursor.execute("SELECT id, name, image FROM patterns")
+        cursor.execute("SELECT id, name, image_path FROM patterns")
         patterns = cursor.fetchall()
         for pattern_id, pattern_name, image_path in patterns:
             item = QListWidgetItem(pattern_name)
@@ -167,7 +167,7 @@ class TicketOptionsWindow(QMainWindow):
             self.ui.plist.addItem(item)
 
         # Load saved upcharges
-        cursor.execute("SELECT id, name, amount FROM upcharges")
+        cursor.execute("SELECT id, description, price FROM upcharges")
         upcharges = cursor.fetchall()
         for upcharge_id, upcharge_name, upcharge_amount in upcharges:
             item = QListWidgetItem(f"{upcharge_name} - ${upcharge_amount}")

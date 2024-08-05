@@ -23,23 +23,21 @@ class GarmentPricingWindow(QMainWindow):
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT g.id, g.name, g.image, COALESCE(p.price, 0) as price
-            FROM cgarments g
-            LEFT JOIN prices p ON g.id = p.cgarment_id AND p.variation_id IS NULL
+            SELECT g.id, g.name, g.image_path
+            FROM Garments g
         """)
         
         garments = cursor.fetchall()
         for garment in garments:
-            garment_id, garment_name, garment_image, garment_price = garment
-            garment_item = QTreeWidgetItem([f"{garment_name} - ${garment_price:.2f}"])
+            garment_id, garment_name, garment_image_path = garment
+            garment_item = QTreeWidgetItem([f"{garment_name}"])
             garment_item.setData(0, Qt.UserRole, (garment_id, None))
             self.ui.garmentvariationlist.addTopLevelItem(garment_item)
 
             cursor.execute("""
-                SELECT v.id, v.variation, COALESCE(p.price, 0) as price
-                FROM cgarment_variations v
-                LEFT JOIN prices p ON v.id = p.variation_id
-                WHERE v.cgarment_id = ?
+                SELECT v.id, v.name, v.price
+                FROM GarmentVariants v
+                WHERE v.garment_id = ?
             """, (garment_id,))
             
             variations = cursor.fetchall()
@@ -53,23 +51,22 @@ class GarmentPricingWindow(QMainWindow):
 
     def on_item_clicked(self, item):
         self.selected_item = item
-        garment_id, variation_id = item.data(0, Qt.UserRole)
+        garment_id, variant_id = item.data(0, Qt.UserRole)
         
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        if variation_id is None:
-            cursor.execute("SELECT price FROM prices WHERE cgarment_id = ? AND variation_id IS NULL", (garment_id,))
-        else:
-            cursor.execute("SELECT price FROM prices WHERE cgarment_id = ? AND variation_id = ?", (garment_id, variation_id))
-        
-        result = cursor.fetchone()
-        if result:
-            self.ui.price.setText(f"{result[0]:.2f}")
-        else:
+        if variant_id is None:
             self.ui.price.setText("0.00")
+        else:
+            cursor.execute("SELECT price FROM GarmentVariants WHERE id = ?", (variant_id,))
+            result = cursor.fetchone()
+            if result:
+                self.ui.price.setText(f"{result[0]:.2f}")
+            else:
+                self.ui.price.setText("0.00")
         
         conn.close()
 
@@ -78,7 +75,7 @@ class GarmentPricingWindow(QMainWindow):
             QMessageBox.warning(self, "No Item Selected", "Please select a garment or variation to set the price.")
             return
         
-        garment_id, variation_id = self.selected_item.data(0, Qt.UserRole)
+        garment_id, variant_id = self.selected_item.data(0, Qt.UserRole)
         try:
             new_price = float(self.ui.price.text())
         except ValueError:
@@ -90,10 +87,11 @@ class GarmentPricingWindow(QMainWindow):
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        if variation_id is None:
-            cursor.execute("REPLACE INTO prices (cgarment_id, variation_id, price) VALUES (?, NULL, ?)", (garment_id, new_price))
+        if variant_id is None:
+            QMessageBox.warning(self, "Invalid Selection", "Please select a variation to set the price.")
+            return
         else:
-            cursor.execute("REPLACE INTO prices (cgarment_id, variation_id, price) VALUES (?, ?, ?)", (garment_id, variation_id, new_price))
+            cursor.execute("UPDATE GarmentVariants SET price = ? WHERE id = ?", (new_price, variant_id))
         
         conn.commit()
         conn.close()
