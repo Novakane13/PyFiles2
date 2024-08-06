@@ -22,7 +22,6 @@ class CustomerAccountWindow(QMainWindow):
         self.customer_data1 = customer_data1 or {}
         self.customer_data2 = customer_data2 or {}
         self.employee_id = employee_id
-        self.ticket_id = None
 
         # Customer IDs
         self.customer_id1 = self.customer_data1.get("id", None)
@@ -71,6 +70,67 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.ctlist_2.itemDoubleClicked.connect(
             lambda: self.convert_selected_quick_ticket(self.ui.ctlist_2, self.customer_id2)
         )
+
+    def load_tickets(self, customer_id, ctlist):
+        """Load tickets from the database for a given customer ID and populate the UI table."""
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Retrieve detailed ticket data
+        cursor.execute("""
+            SELECT t.ticket_number, tt.name as ticket_type, t.date_created, t.date_due, t.total_price, t.pieces
+            FROM Tickets t
+            JOIN TicketTypes tt ON t.ticket_type_id = tt.id
+            WHERE t.customer_id = ?
+        """, (customer_id,))
+
+        detailed_tickets = cursor.fetchall()
+
+        # Retrieve quick ticket data
+        cursor.execute("""
+            SELECT qt.ticket_number, tt.name as ticket_type, qt.due_date, qt.pieces, qt.notes
+            FROM quick_tickets qt
+            JOIN TicketTypes tt ON qt.ticket_type_id = tt.id
+            WHERE qt.customer_id = ?
+        """, (customer_id,))
+
+        quick_tickets = cursor.fetchall()
+
+        conn.close()
+
+        ctlist.setRowCount(0)  # Clear existing rows
+
+        # Populate detailed tickets
+        for ticket in detailed_tickets:
+            ticket_number, ticket_type, date_created, date_due, total_price, pieces = ticket
+            row_position = ctlist.rowCount()
+            ctlist.insertRow(row_position)
+
+            # Fill the table row with the appropriate data
+            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))  # Ticket Number
+            ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))  # Ticket Type
+            ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))  # Drop Off Date
+            ctlist.setItem(row_position, 3, QTableWidgetItem(date_due))  # Due Date
+            ctlist.setItem(row_position, 4, QTableWidgetItem(""))  # Location
+            ctlist.setItem(row_position, 5, QTableWidgetItem(str(pieces)))  # Number of Pieces
+            ctlist.setItem(row_position, 6, QTableWidgetItem(f"{total_price:.2f}"))  # Total Price
+
+        # Populate quick tickets
+        for ticket in quick_tickets:
+            ticket_number, ticket_type, due_date, pieces, notes = ticket
+            row_position = ctlist.rowCount()
+            ctlist.insertRow(row_position)
+
+            # Fill the table row with the appropriate data for quick tickets
+            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))  # Ticket Number
+            ctlist.setItem(row_position, 1, QTableWidgetItem("Quick Ticket"))  # Ticket Type
+            ctlist.setItem(row_position, 2, QTableWidgetItem(""))  # Drop Off Date
+            ctlist.setItem(row_position, 3, QTableWidgetItem(due_date))  # Due Date
+            ctlist.setItem(row_position, 4, QTableWidgetItem(""))  # Location
+            ctlist.setItem(row_position, 5, QTableWidgetItem(str(pieces)))  # Number of Pieces
+            ctlist.setItem(row_position, 6, QTableWidgetItem("N/A"))  # Total Price for Quick Ticket
 
     def populate_ticket_type_buttons(self):
         """Dynamically add ticket type buttons for both customer pages."""
@@ -248,20 +308,18 @@ class CustomerAccountWindow(QMainWindow):
     def open_quick_ticket_page1(self):
         """Open quick ticket window for Page 1."""
         print(f"Opening Quick Ticket for customer_id: {self.customer_id1}")
-        ticket_id = self.fetch_ticket_id(self.ticket_id)
-        self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id1, employee_id=self.employee_id, ticket_id=self.ticket_id)
+        self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id1, employee_id=self.employee_id)
         self.quick_ticket_window.quick_ticket_created.connect(self.load_tickets_after_creation)
         self.quick_ticket_window.show()
 
     def open_quick_ticket_page2(self):
         """Open quick ticket window for Page 2."""
         print(f"Opening Quick Ticket for customer_id: {self.customer_id2}")
-        ticket_id = self.fetch_ticket_id(self.customer_id2)
         self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id2, employee_id=self.employee_id)
         self.quick_ticket_window.quick_ticket_created.connect(self.load_tickets_after_creation)
         self.quick_ticket_window.show()
 
-    def open_detailed_ticket_page1(self, ticket_type_id):
+    def open_detailed_ticket_page1(self, tt_name, ticket_type_id):
         """Open detailed ticket window for Page 1."""
         self.detailed_ticket_window = DetailedTicketWindow(
             customer_id=self.customer_id1,
@@ -271,7 +329,7 @@ class CustomerAccountWindow(QMainWindow):
         self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         self.detailed_ticket_window.show()
 
-    def open_detailed_ticket_page2(self, ticket_type_id):
+    def open_detailed_ticket_page2(self, tt_name, ticket_type_id):
         """Open detailed ticket window for Page 2."""
         self.detailed_ticket_window = DetailedTicketWindow(
             customer_id=self.customer_id2,
@@ -280,77 +338,6 @@ class CustomerAccountWindow(QMainWindow):
         )
         self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         self.detailed_ticket_window.show()
-
-    def load_tickets(self, customer_id, ctlist):
-        """Load tickets from the database for a given customer ID and populate the UI table."""
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Retrieve detailed ticket data
-        cursor.execute("""
-            SELECT t.ticket_number, tt.name as ticket_type, t.date_created, t.date_due, t.total_price, t.status
-            FROM Tickets t
-            JOIN TicketTypes tt ON t.ticket_type_id = tt.id
-            WHERE t.customer_id = ?
-        """, (customer_id,))
-
-        detailed_tickets = cursor.fetchall()
-
-        # Retrieve quick ticket data
-        cursor.execute("""
-            SELECT qt.ticket_number, qt.ticket_type_id, qt.due_date, qt.pieces, qt.notes, qt.all_notes
-            FROM quick_tickets qt
-            WHERE qt.customer_id = ?
-        """, (customer_id,))
-
-        quick_tickets = cursor.fetchall()
-
-        conn.close()
-
-        ctlist.setRowCount(0)  # Clear existing rows
-
-        # Populate detailed tickets
-        for ticket in detailed_tickets:
-            ticket_number, ticket_type, date_created, date_due, total_price, status = ticket
-            row_position = ctlist.rowCount()
-            ctlist.insertRow(row_position)
-
-            # Create placeholders for the 'Picked Up', 'Location', and 'Due Date' columns
-            picked_up_placeholder = "N/A"  # Placeholder for 'Picked Up' status
-            location_placeholder = "N/A"  # Placeholder for 'Location'
-            due_date_placeholder = date_due or "N/A"  # Placeholder or actual 'Due Date'
-
-            # Fill the table row with the appropriate data
-            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))
-            ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))
-            ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))
-            ctlist.setItem(row_position, 3, QTableWidgetItem(due_date_placeholder))  # Due Date placeholder
-            ctlist.setItem(row_position, 4, QTableWidgetItem(location_placeholder))  # Location placeholder
-            ctlist.setItem(row_position, 5, QTableWidgetItem(picked_up_placeholder))  # Picked Up placeholder
-            ctlist.setItem(row_position, 6, QTableWidgetItem(f"{total_price:.2f}"))
-            ctlist.setItem(row_position, 7, QTableWidgetItem(status))
-
-        # Populate quick tickets
-        for ticket in quick_tickets:
-            ticket_number, ticket_type, due_date, pieces, notes, all_notes = ticket
-            row_position = ctlist.rowCount()
-            ctlist.insertRow(row_position)
-
-            # Create placeholders for detailed tickets not available for quick tickets
-            status_placeholder = "Quick Ticket"
-            total_price_placeholder = "N/A"  # Quick tickets don't have a total price yet
-
-            # Fill the table row with the appropriate data
-            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))
-            ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))
-            ctlist.setItem(row_position, 2, QTableWidgetItem("N/A"))  # Date created not applicable
-            ctlist.setItem(row_position, 3, QTableWidgetItem(due_date or "N/A"))
-            ctlist.setItem(row_position, 4, QTableWidgetItem(str(pieces)))
-            ctlist.setItem(row_position, 5, QTableWidgetItem(notes))
-            ctlist.setItem(row_position, 6, QTableWidgetItem(total_price_placeholder))
-            ctlist.setItem(row_position, 7, QTableWidgetItem(status_placeholder))
 
     def load_tickets_after_creation(self, data):
         """Callback to reload tickets after quick ticket creation."""
@@ -371,8 +358,8 @@ class CustomerAccountWindow(QMainWindow):
         ticket_number_item = ctlist.item(selected_row, 0)
         ticket_type_item = ctlist.item(selected_row, 1)
         due_date_item = ctlist.item(selected_row, 3)
-        pieces_item = ctlist.item(selected_row, 4)
-        notes_item = ctlist.item(selected_row, 5)
+        pieces_item = ctlist.item(selected_row, 5)
+        notes_item = ctlist.item(selected_row, 6)
 
         if not ticket_number_item or not ticket_type_item:
             QMessageBox.warning(self, "Invalid Selection", "The selected item is not a valid quick ticket.")
@@ -392,7 +379,6 @@ class CustomerAccountWindow(QMainWindow):
             'pieces': pieces,
             'due_date': due_date,
             'notes': notes,
-            'all_notes': notes
         }
 
         # Emit the signal to convert the quick ticket to a detailed ticket
@@ -407,23 +393,9 @@ class CustomerAccountWindow(QMainWindow):
             pieces=pieces,
             due_date=due_date,
             notes=notes,
-            all_notes=notes
         )
         detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         detailed_ticket_window.show()
-
-    def fetch_ticket_id(self, customer_id):
-        """Fetch the latest ticket ID for the current customer."""
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        cursor.execute("SELECT id FROM Tickets WHERE customer_id = ? ORDER BY id DESC LIMIT 1", (customer_id,))
-        result = cursor.fetchone()
-        conn.close()
-
-        return result[0] if result else None
 
     def get_ticket_type_id(self, ticket_type_name):
         """Retrieve the ticket type ID based on the ticket type name."""
@@ -445,10 +417,3 @@ class CustomerAccountWindow(QMainWindow):
         elif customer_id == self.customer_id2:
             self.load_tickets(self.customer_id2, self.ui.ctlist_2)
 
-
-if __name__ == "__main__":
-    app = QApplication(sys.argv)
-    # Pass the employee_id to the account window, assuming you have it after login
-    account_window = CustomerAccountWindow(employee_id=1)  # Replace 1 with the actual employee_id
-    account_window.show()
-    sys.exit(app.exec())

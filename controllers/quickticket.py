@@ -27,6 +27,7 @@ class QuickTicketWindow(QMainWindow):
         self.ticket_id = ticket_id
         if self.ticket_id:
             self.load_existing_ticket_data()
+
         # Initial mode is DATE_MODE
         self.current_mode = QuickTicketWindow.DATE_MODE
 
@@ -132,13 +133,9 @@ class QuickTicketWindow(QMainWindow):
         pieces2 = self.ui.qtpselection_2.value()
         pieces3 = self.ui.qtpselection_3.value()
 
-        due_date1 = self.ui.dateTimeEdit.date().toString('yyyy-MM-dd')
-        due_date2 = self.ui.dateTimeEdit_2.date().toString('yyyy-MM-dd')
-        due_date3 = self.ui.dateTimeEdit_3.date().toString('yyyy-MM-dd')
-
-        due_time1 = self.ui.dateTimeEdit.time().toString('HH:mm')
-        due_time2 = self.ui.dateTimeEdit_2.time().toString('HH:mm')
-        due_time3 = self.ui.dateTimeEdit_3.time().toString('HH:mm')
+        due_date1 = self.ui.dateTimeEdit.date().toString('yyyy-MM-dd') + ' ' + self.ui.dateTimeEdit.time().toString('HH:mm')
+        due_date2 = self.ui.dateTimeEdit_2.date().toString('yyyy-MM-dd') + ' ' + self.ui.dateTimeEdit_2.time().toString('HH:mm')
+        due_date3 = self.ui.dateTimeEdit_3.date().toString('yyyy-MM-dd') + ' ' + self.ui.dateTimeEdit_3.time().toString('HH:mm')
 
         notes1 = self.ui.qtninput.toPlainText()
         notes2 = self.ui.qtninput_2.toPlainText()
@@ -167,15 +164,14 @@ class QuickTicketWindow(QMainWindow):
 
             if ticket_type_id1:
                 cursor.execute('''
-                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, due_time, notes, all_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id1, pieces1, due_date1, due_time1, notes1, notes_all))
+                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, notes, all_notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id1, pieces1, due_date1, notes1, notes_all))
                 quick_ticket_details.append({
                     'ticket_number': next_ticket_number,
                     'ticket_type': self.ui.ttselection.currentText(),
                     'pieces': pieces1,
                     'due_date': due_date1,
-                    'due_time': due_time1,
                     'notes': notes1,
                     'all_notes': notes_all,
                     'ticket_id': cursor.lastrowid
@@ -184,15 +180,14 @@ class QuickTicketWindow(QMainWindow):
 
             if ticket_type_id2:
                 cursor.execute('''
-                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, due_time, notes, all_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id2, pieces2, due_date2, due_time2, notes2, notes_all))
+                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, notes, all_notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id2, pieces2, due_date2, notes2, notes_all))
                 quick_ticket_details.append({
                     'ticket_number': next_ticket_number,
                     'ticket_type': self.ui.ttselection_2.currentText(),
                     'pieces': pieces2,
                     'due_date': due_date2,
-                    'due_time': due_time2,
                     'notes': notes2,
                     'all_notes': notes_all,
                     'ticket_id': cursor.lastrowid
@@ -201,15 +196,14 @@ class QuickTicketWindow(QMainWindow):
 
             if ticket_type_id3:
                 cursor.execute('''
-                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, due_time, notes, all_notes)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id3, pieces3, due_date3, due_time3, notes3, notes_all))
+                    INSERT INTO quick_tickets (customer_id, employee_id, ticket_number, ticket_type_id, pieces, due_date, notes, all_notes)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                ''', (self.customer_id, self.employee_id, next_ticket_number, ticket_type_id3, pieces3, due_date3, notes3, notes_all))
                 quick_ticket_details.append({
                     'ticket_number': next_ticket_number,
                     'ticket_type': self.ui.ttselection_3.currentText(),
                     'pieces': pieces3,
                     'due_date': due_date3,
-                    'due_time': due_time3,
                     'notes': notes3,
                     'all_notes': notes_all,
                     'ticket_id': cursor.lastrowid

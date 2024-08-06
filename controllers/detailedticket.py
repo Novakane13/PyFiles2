@@ -304,15 +304,17 @@ class DetailedTicketWindow(QMainWindow):
         try:
             # Insert ticket for the single customer
             cursor.execute("""
-                INSERT INTO Tickets (customer_id, ticket_number, ticket_type_id, employee_id, date_created, total_price)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO Tickets (customer_id, ticket_number, ticket_type_id, employee_id, date_created, total_price, pieces, date_due)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 self.customer_id,
                 next_ticket_number,
                 self.ticket_type_id,
                 self.employee_id,  # Save the logged-in employee ID
                 datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
-                total_price  # Save calculated total price
+                total_price,  # Save calculated total price
+                self.pieces,  # Save the number of pieces
+                self.due_date,  # Save due date
             ))
 
             conn.commit()
@@ -668,7 +670,6 @@ class DetailedTicketWindow(QMainWindow):
         # This function should set the appropriate ticket type in the detailed UI
         # You might need to adjust this based on how your UI manages ticket types
         pass
-
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

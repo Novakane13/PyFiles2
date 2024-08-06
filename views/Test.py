@@ -991,6 +991,7 @@ class Ui_DetailedTicketCreation(object):
         self.label_5.setTextFormat(Qt.TextFormat.RichText)
         self.label_5.setScaledContents(False)
         
+        
         # Adjusted positions (added 40 to Y coordinate)
         self.plist = QListWidget(DetailedTicketCreation)
         self.plist.setObjectName(u"plist")
@@ -1060,9 +1061,10 @@ class Ui_DetailedTicketCreation(object):
         self.ptandtbutton.setGeometry(QRect(30, 647, 111, 41))  # Y + 40
         self.tctabs = QTabWidget(DetailedTicketCreation)
         self.tctabs.setObjectName(u"tctabs")
-        self.tctabs.setGeometry(QRect(160, 70, 681, 811))  # Y + 40
+        self.tctabs.setGeometry(QRect(160, 70, 681, 631))  # Y + 40
         self.tctabs1 = QWidget()
         self.tctabs1.setObjectName(u"tctabs1")
+        
         self.ttname = QTextBrowser(self.tctabs1)
         self.ttname.setObjectName(u"ttname")
         self.ttname.setGeometry(QRect(0, 60, 691, 31))  # Y + 40
@@ -1118,22 +1120,14 @@ class Ui_DetailedTicketCreation(object):
         self.sglist.horizontalHeader().setStretchLastSection(False)
         self.sglist.verticalHeader().setVisible(False)
         self.sglist.verticalHeader().setHighlightSections(False)
-        self.pricesframe = QFrame(self.tctabs1)
-        self.pricesframe.setObjectName(u"pricesframe")
-        self.pricesframe.setGeometry(QRect(-10, 640, 691, 146))  # Y + 40
-        self.pricesframe.setFrameShape(QFrame.Shape.StyledPanel)
-        self.pricesframe.setFrameShadow(QFrame.Shadow.Raised)
-        self.line = QFrame(self.tctabs1)
-        self.line.setObjectName(u"line")
-        self.line.setGeometry(QRect(0, 584, 681, 121))  # Y + 40
-        self.line.setFrameShape(QFrame.Shape.HLine)
-        self.line.setFrameShadow(QFrame.Shadow.Sunken)
+        
         self.tctabs.addTab(self.tctabs1, "")
         self.tctabs2 = QWidget()
         self.tctabs2.setObjectName(u"tctabs2")
         self.ttname_2 = QTextBrowser(self.tctabs2)
         self.ttname_2.setObjectName(u"ttname_2")
         self.ttname_2.setGeometry(QRect(0, 60, 691, 31))  # Y + 40
+        
         self.sglist_2 = QTableWidget(self.tctabs2)
         if (self.sglist_2.columnCount() < 7):
             self.sglist_2.setColumnCount(7)
@@ -1152,7 +1146,7 @@ class Ui_DetailedTicketCreation(object):
         __qtablewidgetitem13 = QTableWidgetItem()
         self.sglist_2.setHorizontalHeaderItem(6, __qtablewidgetitem13)
         self.sglist_2.setObjectName(u"sglist_2")
-        self.sglist_2.setGeometry(QRect(0, 20, 681, 761))  # Y + 40
+        self.sglist_2.setGeometry(QRect(0, 20, 681, 631))  # Y + 40
         self.tctabs.addTab(self.tctabs2, "")
         self.tctabs3 = QWidget()
         self.tctabs3.setObjectName(u"tctabs3")
@@ -1177,7 +1171,7 @@ class Ui_DetailedTicketCreation(object):
         __qtablewidgetitem20 = QTableWidgetItem()
         self.sglist_3.setHorizontalHeaderItem(6, __qtablewidgetitem20)
         self.sglist_3.setObjectName(u"sglist_3")
-        self.sglist_3.setGeometry(QRect(0, 20, 681, 761))  # Y + 40
+        self.sglist_3.setGeometry(QRect(0, 20, 681, 631))  # Y + 40
         self.tctabs.addTab(self.tctabs3, "")
         self.ctbutton = QPushButton(DetailedTicketCreation)
         self.ctbutton.setObjectName(u"ctbutton")
@@ -1191,6 +1185,17 @@ class Ui_DetailedTicketCreation(object):
         self.tickettypebuttonwidget = QWidget(DetailedTicketCreation)
         self.tickettypebuttonwidget.setObjectName(u"tickettypebuttonwidget")
         self.tickettypebuttonwidget.setGeometry(QRect(9, 100, 141, 521))  # Y + 40
+        
+        self.pricesframe = QFrame(DetailedTicketCreation)
+        self.pricesframe.setObjectName(u"pricesframe")
+        self.pricesframe.setGeometry(QRect(160, 700, 681, 146))  # Y + 40
+        self.pricesframe.setFrameShape(QFrame.Shape.StyledPanel)
+        self.pricesframe.setFrameShadow(QFrame.Shadow.Raised)
+        self.line = QFrame(self.pricesframe)
+        self.line.setObjectName(u"line")
+        self.line.setGeometry(QRect(-00, 690, 681, 121))  # Y + 40
+        self.line.setFrameShape(QFrame.Shape.HLine)
+        self.line.setFrameShadow(QFrame.Shadow.Sunken)
 
         # Preserved: Garment Variants ComboBox, placed properly
         self.garmentvariantsbox = QComboBox(DetailedTicketCreation)
@@ -1222,6 +1227,9 @@ class Ui_DetailedTicketCreation(object):
         self.total_price_label.setGeometry(QRect(400, 115, 271, 20))
         self.total_price_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
+        
+        
+        
         self.retranslateUi(DetailedTicketCreation)
         self.tctabs.setCurrentIndex(0)
 
