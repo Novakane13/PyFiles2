@@ -11,7 +11,6 @@ from PySide6.QtCore import Qt, QEvent, Signal
 from views.Test import Ui_CustomerAccount2  # Ensure this import is correct
 
 class CustomerAccountWindow(QMainWindow):
-    # Signal to indicate a quick ticket conversion request
     convert_to_detailed_ticket = Signal(dict)
 
     def __init__(self, customer_data1=None, customer_data2=None, employee_id=None):
@@ -23,22 +22,19 @@ class CustomerAccountWindow(QMainWindow):
         self.customer_data2 = customer_data2 or {}
         self.employee_id = employee_id
 
-        # Customer IDs
         self.customer_id1 = self.customer_data1.get("id", None)
         self.customer_id2 = self.customer_data2.get("id", None)
 
-        # Load initial customer data
+        self.detailed_ticket_window = None
+
         self.load_customer_data_page1(self.customer_data1)
         self.load_customer_data_page2(self.customer_data2)
 
-        # Populate ticket type buttons for both pages
         self.populate_ticket_type_buttons()
 
-        # Set initial UI states
-        self.ui.tabWidget.setCurrentIndex(0)  # Ensure Tab 1 is selected
-        self.ui.pageswidget.setCurrentIndex(0)  # Ensure Page 1 is selected
+        self.ui.tabWidget.setCurrentIndex(0)
+        self.ui.pageswidget.setCurrentIndex(0)
 
-        # Connect buttons to their functions
         self.ui.pushButton_16.clicked.connect(self.show_page2)
         self.ui.pushButton_3.clicked.connect(self.show_page1)
         self.ui.pushButton.clicked.connect(self.open_search_window_page1)
@@ -46,24 +42,21 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.qtbutton.clicked.connect(self.open_quick_ticket_page1)
         self.ui.qtbutton_2.clicked.connect(self.open_quick_ticket_page2)
 
-        # Connect the editingFinished signals to save the data
-        self.ui.FirstNameInput.editingFinished.connect(self.save_customer_data_page1)
-        self.ui.LastNameInput.editingFinished.connect(self.save_customer_data_page1)
-        self.ui.PhoneNumberInput.editingFinished.connect(self.save_customer_data_page1)
-        self.ui.NotesInput.focusOutEvent = self.create_save_event(self.ui.NotesInput, self.save_customer_data_page1)
+        self.ui.FirstNameInput.editingFinished.connect(lambda: self.save_customer_data(1))
+        self.ui.LastNameInput.editingFinished.connect(lambda: self.save_customer_data(1))
+        self.ui.PhoneNumberInput.editingFinished.connect(lambda: self.save_customer_data(1))
+        self.ui.NotesInput.focusOutEvent = self.create_save_event(self.ui.NotesInput, lambda: self.save_customer_data(1))
 
-        self.ui.FirstNameInput_2.editingFinished.connect(self.save_customer_data_page2)
-        self.ui.LastNameInput_2.editingFinished.connect(self.save_customer_data_page2)
-        self.ui.PhoneNumberInput_2.editingFinished.connect(self.save_customer_data_page2)
-        self.ui.NotesInput_2.focusOutEvent = self.create_save_event(self.ui.NotesInput_2, self.save_customer_data_page2)
+        self.ui.FirstNameInput_2.editingFinished.connect(lambda: self.save_customer_data(2))
+        self.ui.LastNameInput_2.editingFinished.connect(lambda: self.save_customer_data(2))
+        self.ui.PhoneNumberInput_2.editingFinished.connect(lambda: self.save_customer_data(2))
+        self.ui.NotesInput_2.focusOutEvent = self.create_save_event(self.ui.NotesInput_2, lambda: self.save_customer_data(2))
 
-        # Load tickets for the existing customers
         if self.customer_id1:
             self.load_tickets(self.customer_id1, self.ui.ctlist)
         if self.customer_id2:
             self.load_tickets(self.customer_id2, self.ui.ctlist_2)
 
-        # Connect the list widgets for quick ticket conversion
         self.ui.ctlist.itemDoubleClicked.connect(
             lambda: self.convert_selected_quick_ticket(self.ui.ctlist, self.customer_id1)
         )
@@ -71,14 +64,19 @@ class CustomerAccountWindow(QMainWindow):
             lambda: self.convert_selected_quick_ticket(self.ui.ctlist_2, self.customer_id2)
         )
 
+        self.ui.changetodetailedticket_2.clicked.connect(
+            lambda: self.convert_selected_quick_ticket(self.ui.ctlist, self.customer_id1)
+        )
+        self.ui.changetodetailedticket.clicked.connect(
+            lambda: self.convert_selected_quick_ticket(self.ui.ctlist_2, self.customer_id2)
+        )
+
     def load_tickets(self, customer_id, ctlist):
-        """Load tickets from the database for a given customer ID and populate the UI table."""
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # Retrieve detailed ticket data
         cursor.execute("""
             SELECT t.ticket_number, tt.name as ticket_type, t.date_created, t.date_due, t.total_price, t.pieces
             FROM Tickets t
@@ -88,71 +86,77 @@ class CustomerAccountWindow(QMainWindow):
 
         detailed_tickets = cursor.fetchall()
 
-        # Retrieve quick ticket data
         cursor.execute("""
-            SELECT qt.ticket_number, tt.name as ticket_type, qt.due_date, qt.pieces, qt.notes
+            SELECT qt.ticket_number, tt.name as ticket_type, qt.due_date1, qt.pieces1, qt.notes1, qt.all_notes,
+                qt.ticket_type_id1, qt.ticket_type_id2, qt.ticket_type_id3, qt.date_created
             FROM quick_tickets qt
-            JOIN TicketTypes tt ON qt.ticket_type_id = tt.id
-            WHERE qt.customer_id = ?
+            JOIN TicketTypes tt ON qt.ticket_type_id1 = tt.id
+            WHERE qt.customer_id = ? AND qt.converted = 0
         """, (customer_id,))
-
         quick_tickets = cursor.fetchall()
 
         conn.close()
 
-        ctlist.setRowCount(0)  # Clear existing rows
+        ctlist.setRowCount(0)
 
-        # Populate detailed tickets
         for ticket in detailed_tickets:
             ticket_number, ticket_type, date_created, date_due, total_price, pieces = ticket
             row_position = ctlist.rowCount()
             ctlist.insertRow(row_position)
 
-            # Fill the table row with the appropriate data
-            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))  # Ticket Number
-            ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))  # Ticket Type
-            ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))  # Drop Off Date
-            ctlist.setItem(row_position, 3, QTableWidgetItem(date_due))  # Due Date
-            ctlist.setItem(row_position, 4, QTableWidgetItem(""))  # Location
-            ctlist.setItem(row_position, 5, QTableWidgetItem(str(pieces)))  # Number of Pieces
-            ctlist.setItem(row_position, 6, QTableWidgetItem(f"{total_price:.2f}"))  # Total Price
-
-        # Populate quick tickets
+            ctlist.setItem(row_position, 0, QTableWidgetItem(""))  
+            ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))  
+            ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))  
+            ctlist.setItem(row_position, 3, QTableWidgetItem(date_due))  
+            ctlist.setItem(row_position, 4, QTableWidgetItem(str(ticket_number))) 
+            ctlist.setItem(row_position, 5, QTableWidgetItem("None"))  
+            ctlist.setItem(row_position, 6, QTableWidgetItem(str(pieces))) 
+            ctlist.setItem(row_position, 7, QTableWidgetItem(f"${total_price:.2f}"))  
+        
         for ticket in quick_tickets:
-            ticket_number, ticket_type, due_date, pieces, notes = ticket
+            ticket_number, ticket_type, due_date1, pieces1, notes1, all_notes, ticket_type_id1, ticket_type_id2, ticket_type_id3, date_created = ticket
             row_position = ctlist.rowCount()
             ctlist.insertRow(row_position)
 
-            # Fill the table row with the appropriate data for quick tickets
-            ctlist.setItem(row_position, 0, QTableWidgetItem(str(ticket_number)))  # Ticket Number
-            ctlist.setItem(row_position, 1, QTableWidgetItem("Quick Ticket"))  # Ticket Type
-            ctlist.setItem(row_position, 2, QTableWidgetItem(""))  # Drop Off Date
-            ctlist.setItem(row_position, 3, QTableWidgetItem(due_date))  # Due Date
-            ctlist.setItem(row_position, 4, QTableWidgetItem(""))  # Location
-            ctlist.setItem(row_position, 5, QTableWidgetItem(str(pieces)))  # Number of Pieces
-            ctlist.setItem(row_position, 6, QTableWidgetItem("N/A"))  # Total Price for Quick Ticket
+            ctlist.setItem(row_position, 0, QTableWidgetItem("")) 
+            ctlist.setItem(row_position, 1, QTableWidgetItem("Quick Ticket")) 
+            ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))  
+            ctlist.setItem(row_position, 3, QTableWidgetItem(due_date1)) 
+            ctlist.setItem(row_position, 4, QTableWidgetItem(str(ticket_number))) 
+            ctlist.setItem(row_position, 5, QTableWidgetItem("None"))  
+            ctlist.setItem(row_position, 6, QTableWidgetItem(str(pieces1))) 
+            ctlist.setItem(row_position, 7, QTableWidgetItem("N/A"))  
+
+            ctlist.item(row_position, 0).setData(Qt.UserRole, {
+                'ticket_type': 'quick',
+                'ticket_number': ticket_number,
+                'ticket_type_id1': ticket_type_id1,
+                'ticket_type_id2': ticket_type_id2,
+                'ticket_type_id3': ticket_type_id3,
+                'pieces1': pieces1,
+                'due_date1': due_date1,
+                'notes1': notes1,
+                'all_notes': all_notes,
+                'date_created': date_created
+            })
 
     def populate_ticket_type_buttons(self):
-        """Dynamically add ticket type buttons for both customer pages."""
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        # Retrieve all ticket types
         cursor.execute("SELECT id, name FROM TicketTypes")
         ticket_types = cursor.fetchall()
 
-        # Layouts for buttons
         layout1 = self.ui.tickettypebuttongrid
         layout2 = self.ui.tickettypebuttongrid_2
 
-        # Add buttons dynamically for ticket types
         row1, col1 = 0, 0
         row2, col2 = 0, 0
 
         for ticket_type_id, ticket_type_name in ticket_types:
-            # Button for Page 1
+            # Create and add button for page 1
             button1 = QPushButton(ticket_type_name)
             button1.clicked.connect(lambda checked, tt_name=ticket_type_name, tt_id=ticket_type_id: self.open_detailed_ticket_page1(tt_name, tt_id))
             layout1.addWidget(button1, row1, col1)
@@ -161,7 +165,7 @@ class CustomerAccountWindow(QMainWindow):
                 col1 = 0
                 row1 += 1
 
-            # Button for Page 2
+            # Create and add button for page 2
             button2 = QPushButton(ticket_type_name)
             button2.clicked.connect(lambda checked, tt_name=ticket_type_name, tt_id=ticket_type_id: self.open_detailed_ticket_page2(tt_name, tt_id))
             layout2.addWidget(button2, row2, col2)
@@ -173,7 +177,6 @@ class CustomerAccountWindow(QMainWindow):
         conn.close()
 
     def create_save_event(self, widget, save_function):
-        """Create a focus out event for saving customer data."""
         original_focus_out_event = widget.focusOutEvent
 
         def save_event(event):
@@ -184,21 +187,18 @@ class CustomerAccountWindow(QMainWindow):
         return save_event
 
     def load_customer_data_page1(self, customer_data):
-        """Load customer data into UI elements for Page 1."""
         self.ui.FirstNameInput.setText(customer_data.get("first_name", ""))
         self.ui.LastNameInput.setText(customer_data.get("last_name", ""))
         self.ui.PhoneNumberInput.setText(customer_data.get("phone_number", ""))
         self.ui.NotesInput.setPlainText(customer_data.get("notes", ""))
 
     def load_customer_data_page2(self, customer_data):
-        """Load customer data into UI elements for Page 2."""
         self.ui.FirstNameInput_2.setText(customer_data.get("first_name", ""))
         self.ui.LastNameInput_2.setText(customer_data.get("last_name", ""))
         self.ui.PhoneNumberInput_2.setText(customer_data.get("phone_number", ""))
         self.ui.NotesInput_2.setPlainText(customer_data.get("notes", ""))
 
     def clear_customer_data_page1(self):
-        """Clear customer data in UI elements for Page 1."""
         self.ui.FirstNameInput.clear()
         self.ui.LastNameInput.clear()
         self.ui.PhoneNumberInput.clear()
@@ -208,7 +208,6 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.ctlist.setRowCount(0)
 
     def clear_customer_data_page2(self):
-        """Clear customer data in UI elements for Page 2."""
         self.ui.FirstNameInput_2.clear()
         self.ui.LastNameInput_2.clear()
         self.ui.PhoneNumberInput_2.clear()
@@ -217,188 +216,196 @@ class CustomerAccountWindow(QMainWindow):
         self.customer_data2 = {}
         self.ui.ctlist_2.setRowCount(0)
 
-    def save_customer_data_page1(self):
-        """Save customer data for Page 1 to the database."""
+    def save_customer_data(self, page):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
 
-        if self.customer_id1:
+        customer_id = getattr(self, f'customer_id{page}')
+
+        if page == 1:
+            first_name = self.ui.FirstNameInput.text()
+            last_name = self.ui.LastNameInput.text()
+            phone_number = self.ui.PhoneNumberInput.text()
+            notes = self.ui.NotesInput.toPlainText()
+        elif page == 2:
+            first_name = self.ui.FirstNameInput_2.text()
+            last_name = self.ui.LastNameInput_2.text()
+            phone_number = self.ui.PhoneNumberInput_2.text()
+            notes = self.ui.NotesInput_2.toPlainText()
+
+        if customer_id:
             cursor.execute("""
                 UPDATE customers
                 SET first_name = ?, last_name = ?, phone_number = ?, notes = ?
                 WHERE id = ?
             """, (
-                self.ui.FirstNameInput.text(),
-                self.ui.LastNameInput.text(),
-                self.ui.PhoneNumberInput.text(),
-                self.ui.NotesInput.toPlainText(),
-                self.customer_id1
+                first_name,
+                last_name,
+                phone_number,
+                notes,
+                customer_id
             ))
         else:
             cursor.execute("""
                 INSERT INTO customers (first_name, last_name, phone_number, notes)
                 VALUES (?, ?, ?, ?)
             """, (
-                self.ui.FirstNameInput.text(),
-                self.ui.LastNameInput.text(),
-                self.ui.PhoneNumberInput.text(),
-                self.ui.NotesInput.toPlainText()
+                first_name,
+                last_name,
+                phone_number,
+                notes
             ))
-            self.customer_id1 = cursor.lastrowid
-
-        conn.commit()
-        conn.close()
-
-    def save_customer_data_page2(self):
-        """Save customer data for Page 2 to the database."""
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        if self.customer_id2:
-            cursor.execute("""
-                UPDATE customers
-                SET first_name = ?, last_name = ?, phone_number = ?, notes = ?
-                WHERE id = ?
-            """, (
-                self.ui.FirstNameInput_2.text(),
-                self.ui.LastNameInput_2.text(),
-                self.ui.PhoneNumberInput_2.text(),
-                self.ui.NotesInput_2.toPlainText(),
-                self.customer_id2
-            ))
-        else:
-            cursor.execute("""
-                INSERT INTO customers (first_name, last_name, phone_number, notes)
-                VALUES (?, ?, ?, ?)
-            """, (
-                self.ui.FirstNameInput_2.text(),
-                self.ui.LastNameInput_2.text(),
-                self.ui.PhoneNumberInput_2.text(),
-                self.ui.NotesInput_2.toPlainText()
-            ))
-            self.customer_id2 = cursor.lastrowid
+            setattr(self, f'customer_id{page}', cursor.lastrowid)
 
         conn.commit()
         conn.close()
 
     def show_page1(self):
-        """Switch to Page 1."""
         self.ui.pageswidget.setCurrentIndex(0)
 
     def show_page2(self):
-        """Switch to Page 2."""
         self.ui.pageswidget.setCurrentIndex(1)
 
     def open_search_window_page1(self):
-        """Open search window for Page 1."""
         self.search_window = CustomerSearch(target_page=1)
         self.search_window.customer_selected.connect(self.load_customer_data_page1)
         self.search_window.show()
 
     def open_search_window_page2(self):
-        """Open search window for Page 2."""
         self.search_window = CustomerSearch(target_page=2)
         self.search_window.customer_selected.connect(self.load_customer_data_page2)
         self.search_window.show()
 
     def open_quick_ticket_page1(self):
-        """Open quick ticket window for Page 1."""
-        print(f"Opening Quick Ticket for customer_id: {self.customer_id1}")
         self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id1, employee_id=self.employee_id)
         self.quick_ticket_window.quick_ticket_created.connect(self.load_tickets_after_creation)
         self.quick_ticket_window.show()
 
     def open_quick_ticket_page2(self):
-        """Open quick ticket window for Page 2."""
-        print(f"Opening Quick Ticket for customer_id: {self.customer_id2}")
         self.quick_ticket_window = QuickTicketWindow(customer_id=self.customer_id2, employee_id=self.employee_id)
         self.quick_ticket_window.quick_ticket_created.connect(self.load_tickets_after_creation)
         self.quick_ticket_window.show()
 
-    def open_detailed_ticket_page1(self, tt_name, ticket_type_id):
-        """Open detailed ticket window for Page 1."""
+    def open_detailed_ticket_page1(self, tt_name=None, ticket_type_id1=None, pieces1=1, due_date1=None, notes1=None, all_notes=None):
         self.detailed_ticket_window = DetailedTicketWindow(
             customer_id=self.customer_id1,
-            ticket_type_id=ticket_type_id,
+            ticket_type_id1=ticket_type_id1,
+            tt_name=tt_name,
+            pieces1=pieces1,
+            due_date1=due_date1,
+            notes1=notes1,
+            all_notes=all_notes,
             employee_id=self.employee_id
         )
         self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         self.detailed_ticket_window.show()
 
-    def open_detailed_ticket_page2(self, tt_name, ticket_type_id):
-        """Open detailed ticket window for Page 2."""
+    def open_detailed_ticket_page2(self, tt_name=None, ticket_type_id1=None, pieces1=1, due_date1=None, notes1=None, all_notes=None):
         self.detailed_ticket_window = DetailedTicketWindow(
             customer_id=self.customer_id2,
-            ticket_type_id=ticket_type_id,
+            ticket_type_id1=ticket_type_id1,
+            tt_name=tt_name,
+            pieces1=pieces1,
+            due_date1=due_date1,
+            notes1=notes1,
+            all_notes=all_notes,
             employee_id=self.employee_id
         )
         self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
         self.detailed_ticket_window.show()
 
     def load_tickets_after_creation(self, data):
-        """Callback to reload tickets after quick ticket creation."""
         customer_id = data.get('customer_id')
         if customer_id == self.customer_id1:
             self.load_tickets(self.customer_id1, self.ui.ctlist)
         elif customer_id == self.customer_id2:
             self.load_tickets(self.customer_id2, self.ui.ctlist_2)
 
+    def get_ticket_type_name(self, ticket_type_id):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        try:
+            cursor.execute("SELECT name FROM TicketTypes WHERE id = ?", (ticket_type_id,))
+            result = cursor.fetchone()
+
+            if result:
+                return result[0]
+            else:
+                return None
+        except Exception as e:
+            print(f"Error retrieving ticket type name: {e}")
+            return None
+        finally:
+            conn.close()
+
     def convert_selected_quick_ticket(self, ctlist, customer_id):
-        """Convert the selected quick ticket to a detailed ticket."""
         selected_row = ctlist.currentRow()
         if selected_row < 0:
             QMessageBox.warning(self, "No Selection", "Please select a quick ticket to convert.")
             return
 
-        # Retrieve the ticket details from the selected row
-        ticket_number_item = ctlist.item(selected_row, 0)
-        ticket_type_item = ctlist.item(selected_row, 1)
-        due_date_item = ctlist.item(selected_row, 3)
-        pieces_item = ctlist.item(selected_row, 5)
-        notes_item = ctlist.item(selected_row, 6)
+        ticket_data = ctlist.item(selected_row, 0).data(Qt.UserRole)
 
-        if not ticket_number_item or not ticket_type_item:
+        if not ticket_data:
             QMessageBox.warning(self, "Invalid Selection", "The selected item is not a valid quick ticket.")
             return
+        
+        quick_ticket_number = ticket_data.get('ticket_number')
 
-        ticket_number = int(ticket_number_item.text())
-        ticket_type = ticket_type_item.text()
-        due_date = due_date_item.text()
-        pieces = int(pieces_item.text()) if pieces_item.text().isdigit() else 0
-        notes = notes_item.text() if notes_item else ""
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
-        # Prepare quick ticket data for conversion
-        quick_ticket_data = {
-            'customer_id': customer_id,
-            'ticket_number': ticket_number,
-            'ticket_type': ticket_type,
-            'pieces': pieces,
-            'due_date': due_date,
-            'notes': notes,
-        }
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
 
-        # Emit the signal to convert the quick ticket to a detailed ticket
-        self.convert_to_detailed_ticket.emit(quick_ticket_data)
+            try:
+                cursor.execute("""
+                    UPDATE quick_tickets 
+                    SET converted = 1
+                    WHERE ticket_number = ?
+                """, (quick_ticket_number,))
+                conn.commit()
+            except Exception as e:
+                QMessageBox.warning(self, "Error", f"An error occurred while marking the quick ticket as converted: {e}")
+                return
 
-        # Open the detailed ticket window with the quick ticket data
-        detailed_ticket_window = DetailedTicketWindow(
-            customer_id=customer_id,
-            ticket_number=ticket_number,
-            ticket_type_id=self.get_ticket_type_id(ticket_type),
-            employee_id=self.employee_id,
-            pieces=pieces,
-            due_date=due_date,
-            notes=notes,
-        )
-        detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
-        detailed_ticket_window.show()
+        self.open_detailed_ticket_from_quick_ticket(ticket_data, customer_id)
+
+    def open_detailed_ticket_from_quick_ticket(self, ticket_data, customer_id):
+        try:
+            self.detailed_ticket_window = DetailedTicketWindow(
+                customer_id=customer_id,
+                employee_id=self.employee_id,
+                tt_name=self.get_ticket_type_name(ticket_data.get('ticket_type_id1')),
+                ticket_type_id1=ticket_data.get('ticket_type_id1'),
+                tt_name2=self.get_ticket_type_name(ticket_data.get('ticket_type_id2')),
+                ticket_type_id2=ticket_data.get('ticket_type_id2'),
+                tt_name3=self.get_ticket_type_name(ticket_data.get('ticket_type_id3')),
+                ticket_type_id3=ticket_data.get('ticket_type_id3'),
+                pieces1=ticket_data.get('pieces1', 1),
+                pieces2=ticket_data.get('pieces2'),
+                pieces3=ticket_data.get('pieces3'),
+                due_date1=ticket_data.get('due_date1'),
+                due_date2=ticket_data.get('due_date2'),
+                due_date3=ticket_data.get('due_date3'),
+                notes1=ticket_data.get('notes1'),
+                notes2=ticket_data.get('notes2'),
+                notes3=ticket_data.get('notes3'),
+                all_notes=ticket_data.get('all_notes')
+            )
+            self.detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
+            self.detailed_ticket_window.show()
+
+        except KeyError as e:
+            print(f"KeyError: {e}")
+            QMessageBox.warning(self, "Data Error", f"Missing key in ticket data: {e}")
 
     def get_ticket_type_id(self, ticket_type_name):
-        """Retrieve the ticket type ID based on the ticket type name."""
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
@@ -411,9 +418,7 @@ class CustomerAccountWindow(QMainWindow):
         return result[0] if result else None
 
     def on_ticket_completed(self, customer_id):
-        """Reload tickets when a ticket is completed."""
         if customer_id == self.customer_id1:
             self.load_tickets(self.customer_id1, self.ui.ctlist)
         elif customer_id == self.customer_id2:
             self.load_tickets(self.customer_id2, self.ui.ctlist_2)
-

@@ -2,7 +2,8 @@ import sys
 import os
 import sqlite3
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMainWindow, QApplication, QDialog, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QApplication, QDialog, QMessageBox, QFileDialog
+from PySide6.QtGui import QPixmap
 from views.Test import Ui_Main
 from controllers.customersearch import CustomerSearch
 from controllers.tickettype import TicketTypeCreationWindow
@@ -14,12 +15,18 @@ from detailedticket import DetailedTicketWindow
 from quickticket import QuickTicketWindow
 
 class MainWindow(QMainWindow):
+    IMAGE_PATH_FILE = "image_path.txt"
+    
     def __init__(self, employee_id: int):
         super().__init__()
         self.ui = Ui_Main()  # Assume this is your main UI class generated from Qt Designer
         self.ui.setupUi(self)
         
         self.employee_id = employee_id
+        
+        self.ui.actionAdd_Image.triggered.connect(self.add_image)
+        
+        self.load_saved_image()
 
         # Connect buttons to their functions
         self.ui.ncbutton.clicked.connect(self.open_search_window)
@@ -27,7 +34,6 @@ class MainWindow(QMainWindow):
         self.ui.gandccbutton.clicked.connect(self.open_garments_colors_window)
         self.ui.tocbutton.clicked.connect(self.open_ticket_options_window)
         self.ui.pushButton.clicked.connect(self.open_garment_pricing_window)
-
 
     def open_search_window(self):
         """Open the Customer Search window."""
@@ -66,8 +72,7 @@ class MainWindow(QMainWindow):
             employee_id=self.employee_id
         )
         
-        # Connect quick ticket creation to detailed ticket conversion
-        self.customer_account_window.convert_to_detailed_ticket.connect(self.open_detailed_ticket_from_quick_ticket)
+        
         
         self.customer_account_window.show()
 
@@ -139,35 +144,10 @@ class MainWindow(QMainWindow):
             return self.ui.customerTable.item(selected_row, 0).data(Qt.UserRole)
         return None
 
-    def open_detailed_ticket_from_quick_ticket(self, quick_ticket_data):
-        """
-        Open a Detailed Ticket Window using data from a quick ticket.
-        
-        Args:
-            quick_ticket_data (dict): The data from the quick ticket, including customer ID and ticket details.
-        """
-        for ticket in quick_ticket_data['tickets']:
-            # Resolve the ticket type ID from the ticket type name
-            ticket_type_id = self.get_ticket_type_id(ticket['ticket_type'])
-
-            detailed_ticket_window = DetailedTicketWindow(
-                customer_id=quick_ticket_data['customer_id'],
-                ticket_type=ticket['ticket_type'],
-                ticket_type_id=ticket_type_id,
-                employee_id=self.employee_id,
-                ticket_number=ticket['ticket_number'],
-                pieces=ticket['pieces'],
-                due_date=ticket['due_date'],
-                notes=ticket['notes'],
-                all_notes=ticket['all_notes']
-            )
-            detailed_ticket_window.ticket_completed.connect(self.on_ticket_completed)
-            detailed_ticket_window.show()
+    
 
     def get_ticket_type_id(self, ticket_type_name):
         """
-        Resolve the ticket type name to its corresponding ID.
-        
         Args:
             ticket_type_name (str): The name of the ticket type.
         
@@ -197,11 +177,36 @@ class MainWindow(QMainWindow):
         if self.customer_account_window:
             self.customer_account_window.load_tickets(customer_id, self.customer_account_window.ui.ctlist)
 
+    def add_image(self):
+        # Open a file dialog to select an image
+        file_dialog = QFileDialog()
+        file_path, _ = file_dialog.getOpenFileName(self, "Select Image", "", "Images (*.png *.xpm *.jpg *.jpeg *.bmp)")
 
-if __name__ == "__main__":
-    import sys
+        if file_path:
+            # Set the selected image as the pixmap of the QLabel
+            self.ui.label.setPixmap(QPixmap(file_path))
+            self.ui.label.setScaledContents(True)  # Make the image scale to the QLabel size if needed
 
-    app = QApplication(sys.argv)
-    main_window = MainWindow(employee_id=1)  # Pass a valid employee ID from login
-    main_window.show()
-    sys.exit(app.exec())
+            # Save the selected image path to a file
+            self.save_image_path(file_path)
+
+    def save_image_path(self, file_path):
+        """Save the image path to a text file for persistence."""
+        try:
+            with open(self.IMAGE_PATH_FILE, "w") as f:
+                f.write(file_path)
+        except Exception as e:
+            print(f"Error saving image path: {e}")
+
+    def load_saved_image(self):
+        """Load the saved image path from the text file and display the image."""
+        if os.path.exists(self.IMAGE_PATH_FILE):
+            try:
+                with open(self.IMAGE_PATH_FILE, "r") as f:
+                    file_path = f.read().strip()
+
+                    if os.path.exists(file_path):  # Check if the file still exists
+                        self.ui.label.setPixmap(QPixmap(file_path))
+                        self.ui.label.setScaledContents(True)
+            except Exception as e:
+                print(f"Error loading saved image: {e}")

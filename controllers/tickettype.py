@@ -5,6 +5,13 @@ from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from views.Test import Ui_TicketTypeCreation
 
+import sqlite3
+import os
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor
+from views.Test import Ui_TicketTypeCreation
+
 class TicketTypeCreationWindow(QMainWindow):
     def __init__(self):
         super().__init__()
@@ -82,11 +89,11 @@ class TicketTypeCreationWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
+
         cursor.execute("SELECT id, name FROM TicketTypes")
         ticket_types = cursor.fetchall()
         conn.close()
-        
+
         for ticket_type_id, ticket_type_name in ticket_types:
             item = QListWidgetItem(ticket_type_name)
             item.setData(Qt.UserRole, ticket_type_id)
@@ -107,7 +114,7 @@ class TicketTypeCreationWindow(QMainWindow):
             return
 
         def get_item_ids(widget):
-            return [widget.item(i).data(Qt.UserRole) if isinstance(widget.item(i).data(Qt.UserRole), int) else widget.item(i).data(Qt.UserRole)[0] for i in range(widget.count())]
+            return [widget.item(i).data(Qt.UserRole)[0] if isinstance(widget.item(i).data(Qt.UserRole), tuple) else widget.item(i).data(Qt.UserRole) for i in range(widget.count())]
 
         chosen_garments = get_item_ids(self.ui.cglist)
         chosen_patterns = get_item_ids(self.ui.cpatterns)
@@ -124,59 +131,72 @@ class TicketTypeCreationWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("INSERT INTO TicketTypes (name) VALUES (?)", (ticket_type_name,))
-        ticket_type_id = cursor.lastrowid
 
-        def insert_into_table(table_name, ticket_type_id, item_ids):
-            for item_id in item_ids:
-                cursor.execute(f"INSERT INTO {table_name} (ticket_type_id, {table_name.split('_')[-1]}_id) VALUES (?, ?)", (ticket_type_id, item_id))
+        try:
+            cursor.execute("INSERT INTO TicketTypes (name) VALUES (?)", (ticket_type_name,))
+            ticket_type_id = cursor.lastrowid
 
-        insert_into_table("ticket_type_garments", ticket_type_id, chosen_garments)
-        insert_into_table("ticket_type_patterns", ticket_type_id, chosen_patterns)
-        insert_into_table("ticket_type_textures", ticket_type_id, chosen_textures)
-        insert_into_table("ticket_type_colors", ticket_type_id, chosen_colors)
-        insert_into_table("ticket_type_upcharges", ticket_type_id, chosen_upcharges)
-        insert_into_table("ticket_type_discounts", ticket_type_id, chosen_discounts)
+            def insert_into_table(table_name, ticket_type_id, item_ids):
+                for item_id in item_ids:
+                    cursor.execute(f"INSERT INTO {table_name} (ticket_type_id, {table_name.split('_')[-1]}_id) VALUES (?, ?)", (ticket_type_id, item_id))
 
-        conn.commit()
-        conn.close()
+            insert_into_table("ticket_type_garments", ticket_type_id, chosen_garments)
+            insert_into_table("ticket_type_patterns", ticket_type_id, chosen_patterns)
+            insert_into_table("ticket_type_textures", ticket_type_id, chosen_textures)
+            insert_into_table("ticket_type_colors", ticket_type_id, chosen_colors)
+            insert_into_table("ticket_type_upcharges", ticket_type_id, chosen_upcharges)
+            insert_into_table("ticket_type_discounts", ticket_type_id, chosen_discounts)
 
-        self.ui.sttlist.addItem(QListWidgetItem(ticket_type_name))
-        self.ui.ttinput.clear()
-        self.ui.cglist.clear()
-        self.ui.cpatterns.clear()
-        self.ui.ctextures.clear()
-        self.ui.cclist.clear()
-        self.ui.cupcharges.clear()
-        self.ui.cdiscounts.clear()
-        self.ui.sttlist.clear()  # Clear the list to prevent duplicates
-        self.load_ticket_types()  # Reload the list to reflect the new ticket type
+            conn.commit()
 
+            # Add the new ticket type to the list and clear inputs
+            self.ui.sttlist.addItem(QListWidgetItem(ticket_type_name))
+            self.ui.ttinput.clear()
+            self.ui.cglist.clear()
+            self.ui.cpatterns.clear()
+            self.ui.ctextures.clear()
+            self.ui.cclist.clear()
+            self.ui.cupcharges.clear()
+            self.ui.cdiscounts.clear()
+            self.ui.sttlist.clear()  # Clear the list to prevent duplicates
+            self.load_ticket_types()  # Reload the list to reflect the new ticket type
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Error", f"An error occurred: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
 
     def delete_ticket_type(self):
         selected_item = self.ui.sttlist.currentItem()
         if not selected_item:
             QMessageBox.warning(self, "Selection Error", "Please select a ticket type to delete.")
             return
-        
+
         ticket_type_id = selected_item.data(Qt.UserRole)
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
-        cursor.execute("DELETE FROM TicketTypes WHERE id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_garments WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_patterns WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_textures WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_colors WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_upcharges WHERE ticket_type_id = ?", (ticket_type_id,))
-        cursor.execute("DELETE FROM ticket_type_discounts WHERE ticket_type_id = ?", (ticket_type_id,))
-        
-        conn.commit()
-        conn.close()
-        
-        self.ui.sttlist.takeItem(self.ui.sttlist.row(selected_item))
+
+        try:
+            cursor.execute("DELETE FROM TicketTypes WHERE id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_garments WHERE ticket_type_id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_patterns WHERE ticket_type_id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_textures WHERE ticket_type_id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_colors WHERE ticket_type_id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_upcharges WHERE ticket_type_id = ?", (ticket_type_id,))
+            cursor.execute("DELETE FROM ticket_type_discounts WHERE ticket_type_id = ?", (ticket_type_id,))
+
+            conn.commit()
+
+            self.ui.sttlist.takeItem(self.ui.sttlist.row(selected_item))
+
+        except sqlite3.Error as e:
+            QMessageBox.critical(self, "Database Error", f"An error occurred: {e}")
+            conn.rollback()
+        finally:
+            conn.close()
 
 if __name__ == "__main__":
     import sys

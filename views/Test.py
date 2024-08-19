@@ -13,6 +13,29 @@ from PySide6.QtWidgets import (QApplication, QGroupBox, QHeaderView, QLabel, QAb
     QPlainTextEdit, QSpinBox, QTextBrowser, QMenu, QVBoxLayout, QGridLayout, QTableWidget, QTableWidgetItem, QStackedWidget, QLayout, QLCDNumber)
 import sqlite3
 
+import os
+import sqlite3
+
+def get_next_ticket_number():
+    project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+    db_path = os.path.join(project_root, 'models', 'pos_system.db')
+    conn = sqlite3.connect(db_path)
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        SELECT MAX(ticket_number) FROM (
+            SELECT ticket_number FROM quick_tickets
+            UNION
+            SELECT ticket_number FROM Tickets
+        )
+    """)
+    max_ticket_number = cursor.fetchone()[0]
+
+    next_ticket_number = max_ticket_number + 1 if max_ticket_number else 1
+
+    conn.close()
+
+    return next_ticket_number
 
 
 class Ui_Main(object):
@@ -60,9 +83,8 @@ class Ui_Main(object):
         palette.setBrush(QPalette.Disabled, QPalette.ButtonText, brush5)
         palette.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush)
         Main.setPalette(palette)
-        self.actionAdd_Image = QAction(Main)
-        self.actionAdd_Image.setObjectName(u"actionAdd_Image")
-        self.actionAdd_Image.setMenuRole(QAction.MenuRole.ApplicationSpecificRole)
+        
+        # Setup central widget
         self.centralwidget = QWidget(Main)
         self.centralwidget.setObjectName(u"centralwidget")
         self.frame = QFrame(self.centralwidget)
@@ -70,13 +92,11 @@ class Ui_Main(object):
         self.frame.setGeometry(QRect(-20, -10, 1061, 61))
         self.frame.setFrameShape(QFrame.Shape.StyledPanel)
         self.frame.setFrameShadow(QFrame.Shadow.Raised)
+
+        # Add buttons to the frame
         self.ncbutton = QPushButton(self.frame)
         self.ncbutton.setObjectName(u"ncbutton")
         self.ncbutton.setGeometry(QRect(50, 20, 121, 31))
-        self.ncbutton.setMouseTracking(False)
-        self.ncbutton.setContextMenuPolicy(Qt.ContextMenuPolicy.DefaultContextMenu)
-        self.ncbutton.setAcceptDrops(False)
-        self.ncbutton.setAutoRepeatDelay(301)
         self.ttcbutton = QPushButton(self.frame)
         self.ttcbutton.setObjectName(u"ttcbutton")
         self.ttcbutton.setGeometry(QRect(240, 20, 121, 31))
@@ -89,39 +109,52 @@ class Ui_Main(object):
         self.tocbutton = QPushButton(self.frame)
         self.tocbutton.setObjectName(u"tocbutton")
         self.tocbutton.setGeometry(QRect(840, 20, 131, 31))
+
+        # QLabel to display the image
         self.label = QLabel(self.centralwidget)
         self.label.setObjectName(u"label")
         self.label.setGeometry(QRect(-50, 50, 1181, 901))
-        self.label.setFocusPolicy(Qt.FocusPolicy.WheelFocus)
-        self.label.setToolTipDuration(-2)
-        self.label.setLocale(QLocale(QLocale.Ewe, QLocale.Ghana))
-        self.label.setPixmap(QPixmap(u":/images/Logo #2.jpg"))
+        self.label.setPixmap(QPixmap(u":/images/Logo #2.jpg"))  # Initial image
+        self.label.setScaledContents(True)
+
+        # Set the central widget
         Main.setCentralWidget(self.centralwidget)
+        
+        # Setup menu bar
+        self.menubar = QMenuBar(Main)
+        self.menubar.setGeometry(QRect(0, 0, 800, 21))
+        
+        # Create File menu and add the "Add Image" action
+        self.menuFile = QMenu(self.menubar)
+        self.menuFile.setTitle("File")
+        
+        self.actionAdd_Image = QAction(Main)
+        self.actionAdd_Image.setText("Add Image")
+        self.actionAdd_Image.setObjectName(u"actionAdd_Image")
+        
+        self.menuFile.addAction(self.actionAdd_Image)
+        self.menubar.addAction(self.menuFile.menuAction())
+        
+        # Set the menubar to the main window
+        Main.setMenuBar(self.menubar)
+
+        # Setup status bar
         self.statusbar = QStatusBar(Main)
         self.statusbar.setObjectName(u"statusbar")
         Main.setStatusBar(self.statusbar)
 
         self.retranslateUi(Main)
 
-        self.ncbutton.setDefault(False)
-
-
         QMetaObject.connectSlotsByName(Main)
-    # setupUi
 
     def retranslateUi(self, Main):
         Main.setWindowTitle(QCoreApplication.translate("Main", u"MainWindow", None))
-        self.actionAdd_Image.setText(QCoreApplication.translate("Main", u"Add Image", None))
-#if QT_CONFIG(shortcut)
-        self.actionAdd_Image.setShortcut(QCoreApplication.translate("Main", u"Ctrl+Alt+I", None))
-#endif // QT_CONFIG(shortcut)
         self.ncbutton.setText(QCoreApplication.translate("Main", u"Next Customer", None))
         self.ttcbutton.setText(QCoreApplication.translate("Main", u"Ticket Type Creation", None))
         self.pushButton.setText(QCoreApplication.translate("Main", u"Garment Pricing", None))
         self.gandccbutton.setText(QCoreApplication.translate("Main", u"Garment + Color Creation", None))
         self.tocbutton.setText(QCoreApplication.translate("Main", u"Ticket Options Creation", None))
         self.label.setText("")
-    # retranslateUi
 
 
 class Ui_CustomerSearch(object):
@@ -214,6 +247,7 @@ class Ui_CustomerAccount2(object):
         if not CustomerAccount2.objectName():
             CustomerAccount2.setObjectName(u"CustomerAccount2")
         CustomerAccount2.resize(1437, 899)
+
         palette = QPalette()
         brush = QBrush(QColor(255, 227, 203, 255))
         brush.setStyle(Qt.SolidPattern)
@@ -254,88 +288,119 @@ class Ui_CustomerAccount2(object):
         palette.setBrush(QPalette.Disabled, QPalette.ButtonText, brush5)
         palette.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush)
         CustomerAccount2.setPalette(palette)
+
         self.centralwidget = QWidget(CustomerAccount2)
         self.centralwidget.setObjectName(u"centralwidget")
+
         self.pageswidget = QStackedWidget(self.centralwidget)
         self.pageswidget.setObjectName(u"pageswidget")
         self.pageswidget.setGeometry(QRect(10, 0, 1681, 931))
+
         self.page1 = QWidget()
         self.page1.setObjectName(u"page1")
+
         self.puandpbutton = QPushButton(self.page1)
         self.puandpbutton.setObjectName(u"puandpbutton")
         self.puandpbutton.setGeometry(QRect(280, 770, 101, 41))
+
         self.paybutton = QPushButton(self.page1)
         self.paybutton.setObjectName(u"paybutton")
         self.paybutton.setGeometry(QRect(140, 770, 101, 41))
+
         self.qtbutton = QPushButton(self.page1)
         self.qtbutton.setObjectName(u"qtbutton")
         self.qtbutton.setGeometry(QRect(0, 770, 101, 41))
+
         self.tabWidget = QTabWidget(self.page1)
         self.tabWidget.setObjectName(u"tabWidget")
         self.tabWidget.setGeometry(QRect(0, 10, 381, 381))
+
         self.tab1 = QWidget()
         self.tab1.setObjectName(u"tab1")
+
         self.FirstName = QLabel(self.tab1)
         self.FirstName.setObjectName(u"FirstName")
         self.FirstName.setGeometry(QRect(230, 20, 71, 16))
+
         self.PhoneNumber = QLabel(self.tab1)
         self.PhoneNumber.setObjectName(u"PhoneNumber")
         self.PhoneNumber.setGeometry(QRect(150, 90, 81, 16))
+
         self.LastNameInput = QLineEdit(self.tab1)
         self.LastNameInput.setObjectName(u"LastNameInput")
         self.LastNameInput.setGeometry(QRect(40, 50, 141, 31))
+
         self.NotesInput = QPlainTextEdit(self.tab1)
         self.NotesInput.setObjectName(u"NotesInput")
         self.NotesInput.setGeometry(QRect(40, 200, 301, 131))
+
         self.PhoneNumberInput = QLineEdit(self.tab1)
         self.PhoneNumberInput.setObjectName(u"PhoneNumberInput")
         self.PhoneNumberInput.setGeometry(QRect(90, 120, 201, 31))
+
         self.LastName = QLabel(self.tab1)
         self.LastName.setObjectName(u"LastName")
         self.LastName.setGeometry(QRect(40, 20, 61, 16))
+
         self.FirstNameInput = QLineEdit(self.tab1)
         self.FirstNameInput.setObjectName(u"FirstNameInput")
         self.FirstNameInput.setGeometry(QRect(222, 50, 121, 31))
+
         self.Notes = QLabel(self.tab1)
         self.Notes.setObjectName(u"Notes")
         self.Notes.setGeometry(QRect(180, 170, 49, 16))
+
         self.tabWidget.addTab(self.tab1, "")
+
         self.tab_2 = QWidget()
         self.tab_2.setObjectName(u"tab_2")
+
         self.lineEdit_9 = QLineEdit(self.tab_2)
         self.lineEdit_9.setObjectName(u"lineEdit_9")
         self.lineEdit_9.setGeometry(QRect(48, 785, 141, 31))
+
         self.lineEdit_7 = QLineEdit(self.tab_2)
         self.lineEdit_7.setObjectName(u"lineEdit_7")
         self.lineEdit_7.setGeometry(QRect(98, 855, 201, 31))
+
         self.label_9 = QLabel(self.tab_2)
         self.label_9.setObjectName(u"label_9")
         self.label_9.setGeometry(QRect(48, 755, 61, 16))
+
         self.label_7 = QLabel(self.tab_2)
         self.label_7.setObjectName(u"label_7")
         self.label_7.setGeometry(QRect(238, 755, 71, 16))
+
         self.lineEdit_8 = QLineEdit(self.tab_2)
         self.lineEdit_8.setObjectName(u"lineEdit_8")
         self.lineEdit_8.setGeometry(QRect(230, 785, 121, 31))
+
         self.tabWidget.addTab(self.tab_2, "")
+
         self.label_17 = QLabel(self.page1)
         self.label_17.setObjectName(u"label_17")
         self.label_17.setGeometry(QRect(120, 0, 49, 16))
+
         self.pushButton = QPushButton(self.page1)
         self.pushButton.setObjectName(u"pushButton")
         self.pushButton.setGeometry(QRect(140, 420, 101, 41))
+
         self.pushButton_16 = QPushButton(self.page1)
         self.pushButton_16.setObjectName(u"pushButton_16")
         self.pushButton_16.setGeometry(QRect(1210, 30, 151, 51))
+
         self.gridLayoutWidget_2 = QWidget(self.page1)
         self.gridLayoutWidget_2.setObjectName(u"gridLayoutWidget_2")
         self.gridLayoutWidget_2.setGeometry(QRect(0, 469, 371, 291))
+
         self.tickettypebuttongrid = QGridLayout(self.gridLayoutWidget_2)
         self.tickettypebuttongrid.setObjectName(u"tickettypebuttongrid")
         self.tickettypebuttongrid.setContentsMargins(0, 0, 0, 0)
+
         self.ctlist = QTableWidget(self.page1)
         if (self.ctlist.columnCount() < 8):
             self.ctlist.setColumnCount(8)
+
         icon = QIcon()
         icon.addFile(u":/images/Logo #2.jpg", QSize(), QIcon.Mode.Normal, QIcon.State.On)
         __qtablewidgetitem = QTableWidgetItem()
@@ -357,91 +422,122 @@ class Ui_CustomerAccount2(object):
         self.ctlist.setHorizontalHeaderItem(7, __qtablewidgetitem7)
         self.ctlist.setObjectName(u"ctlist")
         self.ctlist.setGeometry(QRect(390, 30, 811, 781))
-        
-        # Refactored to select rows instead of items
         self.ctlist.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.ctlist.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.ctlist.verticalHeader().setVisible(False)
 
+        self.changetodetailedticket_2 = QPushButton(self.page1)
+        self.changetodetailedticket_2.setObjectName(u"changetodetailedticket_2")
+        self.changetodetailedticket_2.setGeometry(QRect(1210, 100, 151, 51))
+
         self.pageswidget.addWidget(self.page1)
+
         self.page_2 = QWidget()
         self.page_2.setObjectName(u"page_2")
+
         self.tabWidget_2 = QTabWidget(self.page_2)
         self.tabWidget_2.setObjectName(u"tabWidget_2")
         self.tabWidget_2.setGeometry(QRect(0, 10, 381, 381))
+
         self.tab_3 = QWidget()
         self.tab_3.setObjectName(u"tab_3")
+
         self.FirstName_2 = QLabel(self.tab_3)
         self.FirstName_2.setObjectName(u"FirstName_2")
         self.FirstName_2.setGeometry(QRect(230, 20, 71, 16))
+
         self.PhoneNumber_2 = QLabel(self.tab_3)
         self.PhoneNumber_2.setObjectName(u"PhoneNumber_2")
         self.PhoneNumber_2.setGeometry(QRect(150, 90, 81, 16))
+
         self.LastNameInput_2 = QLineEdit(self.tab_3)
         self.LastNameInput_2.setObjectName(u"LastNameInput_2")
         self.LastNameInput_2.setGeometry(QRect(40, 50, 141, 31))
+
         self.NotesInput_2 = QPlainTextEdit(self.tab_3)
         self.NotesInput_2.setObjectName(u"NotesInput_2")
         self.NotesInput_2.setGeometry(QRect(40, 200, 301, 131))
+
         self.PhoneNumberInput_2 = QLineEdit(self.tab_3)
         self.PhoneNumberInput_2.setObjectName(u"PhoneNumberInput_2")
         self.PhoneNumberInput_2.setGeometry(QRect(90, 120, 201, 31))
+
         self.LastName_2 = QLabel(self.tab_3)
         self.LastName_2.setObjectName(u"LastName_2")
         self.LastName_2.setGeometry(QRect(40, 20, 61, 16))
+
         self.FirstNameInput_2 = QLineEdit(self.tab_3)
         self.FirstNameInput_2.setObjectName(u"FirstNameInput_2")
         self.FirstNameInput_2.setGeometry(QRect(222, 50, 121, 31))
+
         self.Notes_2 = QLabel(self.tab_3)
         self.Notes_2.setObjectName(u"Notes_2")
         self.Notes_2.setGeometry(QRect(180, 170, 49, 16))
+
         self.tabWidget_2.addTab(self.tab_3, "")
+
         self.tab_4 = QWidget()
         self.tab_4.setObjectName(u"tab_4")
+
         self.lineEdit_16 = QLineEdit(self.tab_4)
         self.lineEdit_16.setObjectName(u"lineEdit_16")
         self.lineEdit_16.setGeometry(QRect(48, 785, 141, 31))
+
         self.lineEdit_17 = QLineEdit(self.tab_4)
         self.lineEdit_17.setObjectName(u"lineEdit_17")
         self.lineEdit_17.setGeometry(QRect(98, 855, 201, 31))
+
         self.label_15 = QLabel(self.tab_4)
         self.label_15.setObjectName(u"label_15")
         self.label_15.setGeometry(QRect(48, 755, 61, 16))
+
         self.label_16 = QLabel(self.tab_4)
         self.label_16.setObjectName(u"label_16")
         self.label_16.setGeometry(QRect(238, 755, 71, 16))
+
         self.lineEdit_18 = QLineEdit(self.tab_4)
         self.lineEdit_18.setObjectName(u"lineEdit_18")
         self.lineEdit_18.setGeometry(QRect(230, 785, 121, 31))
+
         self.tabWidget_2.addTab(self.tab_4, "")
+
         self.puandpbutton_2 = QPushButton(self.page_2)
         self.puandpbutton_2.setObjectName(u"puandpbutton_2")
         self.puandpbutton_2.setGeometry(QRect(280, 770, 101, 41))
+
         self.qtbutton_2 = QPushButton(self.page_2)
         self.qtbutton_2.setObjectName(u"qtbutton_2")
         self.qtbutton_2.setGeometry(QRect(0, 770, 101, 41))
+
         self.paybutton_2 = QPushButton(self.page_2)
         self.paybutton_2.setObjectName(u"paybutton_2")
         self.paybutton_2.setGeometry(QRect(140, 770, 101, 41))
+
         self.label_18 = QLabel(self.page_2)
         self.label_18.setObjectName(u"label_18")
         self.label_18.setGeometry(QRect(120, 0, 49, 16))
+
         self.pushButton_2 = QPushButton(self.page_2)
         self.pushButton_2.setObjectName(u"pushButton_2")
         self.pushButton_2.setGeometry(QRect(140, 420, 101, 41))
+
         self.pushButton_3 = QPushButton(self.page_2)
         self.pushButton_3.setObjectName(u"pushButton_3")
         self.pushButton_3.setGeometry(QRect(1210, 30, 151, 51))
+
         self.gridLayoutWidget = QWidget(self.page_2)
         self.gridLayoutWidget.setObjectName(u"gridLayoutWidget")
         self.gridLayoutWidget.setGeometry(QRect(0, 470, 381, 291))
+
         self.tickettypebuttongrid_2 = QGridLayout(self.gridLayoutWidget)
         self.tickettypebuttongrid_2.setObjectName(u"tickettypebuttongrid_2")
         self.tickettypebuttongrid_2.setSizeConstraint(QLayout.SizeConstraint.SetMinimumSize)
         self.tickettypebuttongrid_2.setContentsMargins(1, 1, 1, 1)
+
         self.ctlist_2 = QTableWidget(self.page_2)
         if (self.ctlist_2.columnCount() < 8):
             self.ctlist_2.setColumnCount(8)
+
         __qtablewidgetitem8 = QTableWidgetItem()
         __qtablewidgetitem8.setIcon(icon);
         self.ctlist_2.setHorizontalHeaderItem(0, __qtablewidgetitem8)
@@ -459,6 +555,7 @@ class Ui_CustomerAccount2(object):
         self.ctlist_2.setHorizontalHeaderItem(6, __qtablewidgetitem14)
         __qtablewidgetitem15 = QTableWidgetItem()
         self.ctlist_2.setHorizontalHeaderItem(7, __qtablewidgetitem15)
+
         self.ctlist_2.setObjectName(u"ctlist_2")
         self.ctlist_2.setGeometry(QRect(390, 30, 811, 781))
         sizePolicy = QSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Preferred)
@@ -467,21 +564,23 @@ class Ui_CustomerAccount2(object):
         sizePolicy.setHeightForWidth(self.ctlist_2.sizePolicy().hasHeightForWidth())
         self.ctlist_2.setSizePolicy(sizePolicy)
         self.ctlist_2.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
-        
-        # Refactored to select rows instead of items
         self.ctlist_2.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.ctlist_2.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.ctlist_2.verticalHeader().setVisible(False)
-
         self.ctlist_2.setProperty("showDropIndicator", False)
         self.ctlist_2.setDragDropOverwriteMode(False)
-        self.ctlist_2.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.ctlist_2.setSortingEnabled(True)
         self.ctlist_2.setWordWrap(False)
         self.ctlist_2.setCornerButtonEnabled(False)
         self.ctlist_2.horizontalHeader().setVisible(True)
-        self.ctlist_2.verticalHeader().setVisible(False)
+       
+
+        self.changetodetailedticket = QPushButton(self.page_2)
+        self.changetodetailedticket.setObjectName(u"changetodetailedticket")
+        self.changetodetailedticket.setGeometry(QRect(1210, 100, 151, 51))
+
         self.pageswidget.addWidget(self.page_2)
+
         CustomerAccount2.setCentralWidget(self.centralwidget)
         QWidget.setTabOrder(self.LastNameInput, self.FirstNameInput)
         QWidget.setTabOrder(self.FirstNameInput, self.PhoneNumberInput)
@@ -514,7 +613,6 @@ class Ui_CustomerAccount2(object):
         self.pageswidget.setCurrentIndex(1)
         self.tabWidget.setCurrentIndex(0)
         self.tabWidget_2.setCurrentIndex(0)
-
 
         QMetaObject.connectSlotsByName(CustomerAccount2)
     # setupUi
@@ -551,6 +649,7 @@ class Ui_CustomerAccount2(object):
         ___qtablewidgetitem6.setText(QCoreApplication.translate("CustomerAccount2", u"# Of Pieces", None));
         ___qtablewidgetitem7 = self.ctlist.horizontalHeaderItem(7)
         ___qtablewidgetitem7.setText(QCoreApplication.translate("CustomerAccount2", u"$ Total $  ", None));
+        self.changetodetailedticket_2.setText(QCoreApplication.translate("CustomerAccount2", u"Change to Detailed Ticket", None))
         self.FirstName_2.setText(QCoreApplication.translate("CustomerAccount2", u"First Name", None))
         self.PhoneNumber_2.setText(QCoreApplication.translate("CustomerAccount2", u"Phone Number", None))
         self.LastName_2.setText(QCoreApplication.translate("CustomerAccount2", u"Last Name", None))
@@ -581,11 +680,8 @@ class Ui_CustomerAccount2(object):
         ___qtablewidgetitem14.setText(QCoreApplication.translate("CustomerAccount2", u"# Of Pieces", None));
         ___qtablewidgetitem15 = self.ctlist_2.horizontalHeaderItem(7)
         ___qtablewidgetitem15.setText(QCoreApplication.translate("CustomerAccount2", u"$ Total $  ", None));
+        self.changetodetailedticket.setText(QCoreApplication.translate("CustomerAccount2", u"Change to Detailed Ticket", None))
     # retranslateUi
-
-
-
-
 
 
 
@@ -952,34 +1048,34 @@ class Ui_DetailedTicketCreation(object):
         self.label_5 = QLabel(DetailedTicketCreation)
         self.label_5.setObjectName(u"label_5")
         self.label_5.setGeometry(QRect(360, 0, 811, 61))
-        palette1 = QPalette()
+        palette4 = QPalette()
         brush8 = QBrush(QColor(85, 0, 255, 255))
         brush8.setStyle(Qt.SolidPattern)
-        palette1.setBrush(QPalette.Active, QPalette.WindowText, brush8)
-        palette1.setBrush(QPalette.Active, QPalette.Text, brush8)
+        palette4.setBrush(QPalette.Active, QPalette.WindowText, brush8)
+        palette4.setBrush(QPalette.Active, QPalette.Text, brush8)
         brush9 = QBrush(QColor(255, 170, 255, 255))
         brush9.setStyle(Qt.SolidPattern)
-        palette1.setBrush(QPalette.Active, QPalette.BrightText, brush9)
-        palette1.setBrush(QPalette.Active, QPalette.ButtonText, brush8)
-        palette1.setBrush(QPalette.Active, QPalette.Window, brush8)
-        palette1.setBrush(QPalette.Active, QPalette.Shadow, brush9)
-        palette1.setBrush(QPalette.Active, QPalette.HighlightedText, brush8)
-        palette1.setBrush(QPalette.Active, QPalette.ToolTipBase, brush9)
-        palette1.setBrush(QPalette.Active, QPalette.ToolTipText, brush9)
-        palette1.setBrush(QPalette.Inactive, QPalette.WindowText, brush8)
-        palette1.setBrush(QPalette.Inactive, QPalette.Text, brush8)
-        palette1.setBrush(QPalette.Inactive, QPalette.BrightText, brush9)
-        palette1.setBrush(QPalette.Inactive, QPalette.ButtonText, brush8)
-        palette1.setBrush(QPalette.Inactive, QPalette.Window, brush8)
-        palette1.setBrush(QPalette.Inactive, QPalette.HighlightedText, brush8)
-        palette1.setBrush(QPalette.Disabled, QPalette.Text, brush9)
-        palette1.setBrush(QPalette.Disabled, QPalette.BrightText, brush9)
-        palette1.setBrush(QPalette.Disabled, QPalette.ButtonText, brush9)
-        palette1.setBrush(QPalette.Disabled, QPalette.Base, brush8)
-        palette1.setBrush(QPalette.Disabled, QPalette.Window, brush8)
-        palette1.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush8)
-        palette1.setBrush(QPalette.Disabled, QPalette.ToolTipBase, brush9)
-        self.label_5.setPalette(palette1)
+        palette4.setBrush(QPalette.Active, QPalette.BrightText, brush9)
+        palette4.setBrush(QPalette.Active, QPalette.ButtonText, brush8)
+        palette4.setBrush(QPalette.Active, QPalette.Window, brush8)
+        palette4.setBrush(QPalette.Active, QPalette.Shadow, brush9)
+        palette4.setBrush(QPalette.Active, QPalette.HighlightedText, brush8)
+        palette4.setBrush(QPalette.Active, QPalette.ToolTipBase, brush9)
+        palette4.setBrush(QPalette.Active, QPalette.ToolTipText, brush9)
+        palette4.setBrush(QPalette.Inactive, QPalette.WindowText, brush8)
+        palette4.setBrush(QPalette.Inactive, QPalette.Text, brush8)
+        palette4.setBrush(QPalette.Inactive, QPalette.BrightText, brush9)
+        palette4.setBrush(QPalette.Inactive, QPalette.ButtonText, brush8)
+        palette4.setBrush(QPalette.Inactive, QPalette.Window, brush8)
+        palette4.setBrush(QPalette.Inactive, QPalette.HighlightedText, brush8)
+        palette4.setBrush(QPalette.Disabled, QPalette.Text, brush9)
+        palette4.setBrush(QPalette.Disabled, QPalette.BrightText, brush9)
+        palette4.setBrush(QPalette.Disabled, QPalette.ButtonText, brush9)
+        palette4.setBrush(QPalette.Disabled, QPalette.Base, brush8)
+        palette4.setBrush(QPalette.Disabled, QPalette.Window, brush8)
+        palette4.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush8)
+        palette4.setBrush(QPalette.Disabled, QPalette.ToolTipBase, brush9)
+        self.label_5.setPalette(palette4)
         font2 = QFont()
         font2.setFamilies([u"Ravie"])
         font2.setPointSize(36)
@@ -991,40 +1087,38 @@ class Ui_DetailedTicketCreation(object):
         self.label_5.setTextFormat(Qt.TextFormat.RichText)
         self.label_5.setScaledContents(False)
         
-        
-        # Adjusted positions (added 40 to Y coordinate)
         self.plist = QListWidget(DetailedTicketCreation)
         self.plist.setObjectName(u"plist")
-        self.plist.setGeometry(QRect(850, 520, 131, 191))  # Y + 40
+        self.plist.setGeometry(QRect(850, 520, 131, 191))
         self.clist = QListWidget(DetailedTicketCreation)
         self.clist.setObjectName(u"clist")
-        self.clist.setGeometry(QRect(850, 730, 411, 151))  # Y + 40
+        self.clist.setGeometry(QRect(850, 730, 411, 151))
         self.ulist = QListWidget(DetailedTicketCreation)
         self.ulist.setObjectName(u"ulist")
-        self.ulist.setGeometry(QRect(1130, 520, 131, 191))  # Y + 40
+        self.ulist.setGeometry(QRect(1130, 520, 131, 191))
         self.ulabel = QLabel(DetailedTicketCreation)
         self.ulabel.setObjectName(u"ulabel")
-        self.ulabel.setGeometry(QRect(1140, 500, 61, 16))  # Y + 40
+        self.ulabel.setGeometry(QRect(1140, 500, 61, 16))
         self.plabel = QLabel(DetailedTicketCreation)
         self.plabel.setObjectName(u"plabel")
-        self.plabel.setGeometry(QRect(860, 500, 71, 16))  # Y + 40
+        self.plabel.setGeometry(QRect(860, 500, 71, 16))
         self.clabel = QLabel(DetailedTicketCreation)
         self.clabel.setObjectName(u"clabel")
-        self.clabel.setGeometry(QRect(860, 710, 49, 16))  # Y + 40
+        self.clabel.setGeometry(QRect(860, 710, 49, 16))
         self.glist = QListWidget(DetailedTicketCreation)
         self.glist.setObjectName(u"glist")
-        self.glist.setGeometry(QRect(850, 90, 411, 401))  # Y + 40
+        self.glist.setGeometry(QRect(850, 90, 411, 401))
         self.tlist = QListWidget(DetailedTicketCreation)
         self.tlist.setObjectName(u"tlist")
-        self.tlist.setGeometry(QRect(990, 520, 131, 161))  # Y + 40
+        self.tlist.setGeometry(QRect(990, 520, 131, 161))
         self.tlabel = QLabel(DetailedTicketCreation)
         self.tlabel.setObjectName(u"tlabel")
-        self.tlabel.setGeometry(QRect(1000, 500, 61, 16))  # Y + 40
+        self.tlabel.setGeometry(QRect(1000, 500, 61, 16))
         self.glabel = QLabel(DetailedTicketCreation)
         self.glabel.setObjectName(u"glabel")
-        self.glabel.setGeometry(QRect(860, 70, 61, 16))  # Y + 40
+        self.glabel.setGeometry(QRect(860, 70, 61, 16))
         
-        # Preserved: Pieces LCD display
+         # Preserved: Pieces LCD display
         self.piecesdisplay = QLCDNumber(DetailedTicketCreation)
         self.piecesdisplay.setObjectName("piecesdisplay")
         self.piecesdisplay.setGeometry(QRect(1030, 690, 60, 30))  # Y + 40
@@ -1040,39 +1134,41 @@ class Ui_DetailedTicketCreation(object):
         self.minusbutton.setObjectName("minusbutton")
         self.minusbutton.setGeometry(QRect(990, 690, 30, 30))  # Y + 40
         self.minusbutton.setText("-")
-
+        
         self.pieceslabel = QLabel(DetailedTicketCreation)
         self.pieceslabel.setObjectName(u"pieceslabel")
-        self.pieceslabel.setGeometry(QRect(990, 670, 41, 16))  # Y + 40
+        self.pieceslabel.setGeometry(QRect(990, 677, 41, 16))
+        font1 = QFont()
+        font1.setPointSize(7)
+        self.pieceslabel.setFont(font1)
         self.editgarmentbutton = QPushButton(DetailedTicketCreation)
         self.editgarmentbutton.setObjectName(u"editgarmentbutton")
-        self.editgarmentbutton.setGeometry(QRect(1270, 600, 121, 41))  # Y + 40
+        self.editgarmentbutton.setGeometry(QRect(1270, 600, 121, 41))
         self.deletegarmentbutton = QPushButton(DetailedTicketCreation)
         self.deletegarmentbutton.setObjectName(u"deletegarmentbutton")
-        self.deletegarmentbutton.setGeometry(QRect(1270, 740, 121, 41))  # Y + 40
+        self.deletegarmentbutton.setGeometry(QRect(1270, 740, 121, 41))
         self.canceltbutton = QPushButton(DetailedTicketCreation)
         self.canceltbutton.setObjectName(u"canceltbutton")
-        self.canceltbutton.setGeometry(QRect(30, 837, 111, 41))  # Y + 40
+        self.canceltbutton.setGeometry(QRect(30, 837, 111, 41))
         self.ptbutton = QPushButton(DetailedTicketCreation)
         self.ptbutton.setObjectName(u"ptbutton")
-        self.ptbutton.setGeometry(QRect(30, 700, 111, 41))  # Y + 40
+        self.ptbutton.setGeometry(QRect(30, 700, 111, 41))
         self.ptandtbutton = QPushButton(DetailedTicketCreation)
         self.ptandtbutton.setObjectName(u"ptandtbutton")
-        self.ptandtbutton.setGeometry(QRect(30, 647, 111, 41))  # Y + 40
+        self.ptandtbutton.setGeometry(QRect(30, 647, 111, 41))
+        
+        
         self.tctabs = QTabWidget(DetailedTicketCreation)
         self.tctabs.setObjectName(u"tctabs")
-        self.tctabs.setGeometry(QRect(160, 70, 681, 631))  # Y + 40
+        self.tctabs.setGeometry(QRect(160, 70, 681, 811))
         self.tctabs1 = QWidget()
         self.tctabs1.setObjectName(u"tctabs1")
-        
         self.ttname = QTextBrowser(self.tctabs1)
         self.ttname.setObjectName(u"ttname")
-        self.ttname.setGeometry(QRect(0, 60, 691, 31))  # Y + 40
+        self.ttname.setGeometry(QRect(0, 60, 691, 31))
         self.sglist = QTableWidget(self.tctabs1)
         if (self.sglist.columnCount() < 7):
             self.sglist.setColumnCount(7)
-        font1 = QFont()
-        font1.setPointSize(7)
         __qtablewidgetitem = QTableWidgetItem()
         __qtablewidgetitem.setFont(font1);
         self.sglist.setHorizontalHeaderItem(0, __qtablewidgetitem)
@@ -1096,7 +1192,7 @@ class Ui_DetailedTicketCreation(object):
         self.sglist.setHorizontalHeaderItem(6, __qtablewidgetitem6)
         self.sglist.setObjectName(u"sglist")
         self.sglist.setEnabled(True)
-        self.sglist.setGeometry(QRect(0, 20, 681, 631))  # Y + 40
+        self.sglist.setGeometry(QRect(0, 20, 681, 631))
         self.sglist.setBaseSize(QSize(0, 0))
         self.sglist.setLineWidth(0)
         self.sglist.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContentsOnFirstShow)
@@ -1120,87 +1216,19 @@ class Ui_DetailedTicketCreation(object):
         self.sglist.horizontalHeader().setStretchLastSection(False)
         self.sglist.verticalHeader().setVisible(False)
         self.sglist.verticalHeader().setHighlightSections(False)
-        
-        self.tctabs.addTab(self.tctabs1, "")
-        self.tctabs2 = QWidget()
-        self.tctabs2.setObjectName(u"tctabs2")
-        self.ttname_2 = QTextBrowser(self.tctabs2)
-        self.ttname_2.setObjectName(u"ttname_2")
-        self.ttname_2.setGeometry(QRect(0, 60, 691, 31))  # Y + 40
-        
-        self.sglist_2 = QTableWidget(self.tctabs2)
-        if (self.sglist_2.columnCount() < 7):
-            self.sglist_2.setColumnCount(7)
-        __qtablewidgetitem7 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(0, __qtablewidgetitem7)
-        __qtablewidgetitem8 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(1, __qtablewidgetitem8)
-        __qtablewidgetitem9 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(2, __qtablewidgetitem9)
-        __qtablewidgetitem10 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(3, __qtablewidgetitem10)
-        __qtablewidgetitem11 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(4, __qtablewidgetitem11)
-        __qtablewidgetitem12 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(5, __qtablewidgetitem12)
-        __qtablewidgetitem13 = QTableWidgetItem()
-        self.sglist_2.setHorizontalHeaderItem(6, __qtablewidgetitem13)
-        self.sglist_2.setObjectName(u"sglist_2")
-        self.sglist_2.setGeometry(QRect(0, 20, 681, 631))  # Y + 40
-        self.tctabs.addTab(self.tctabs2, "")
-        self.tctabs3 = QWidget()
-        self.tctabs3.setObjectName(u"tctabs3")
-        self.ttname_3 = QTextBrowser(self.tctabs3)
-        self.ttname_3.setObjectName(u"ttname_3")
-        self.ttname_3.setGeometry(QRect(0, 60, 691, 31))  # Y + 40
-        self.sglist_3 = QTableWidget(self.tctabs3)
-        if (self.sglist_3.columnCount() < 7):
-            self.sglist_3.setColumnCount(7)
-        __qtablewidgetitem14 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(0, __qtablewidgetitem14)
-        __qtablewidgetitem15 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(1, __qtablewidgetitem15)
-        __qtablewidgetitem16 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(2, __qtablewidgetitem16)
-        __qtablewidgetitem17 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(3, __qtablewidgetitem17)
-        __qtablewidgetitem18 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(4, __qtablewidgetitem18)
-        __qtablewidgetitem19 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(5, __qtablewidgetitem19)
-        __qtablewidgetitem20 = QTableWidgetItem()
-        self.sglist_3.setHorizontalHeaderItem(6, __qtablewidgetitem20)
-        self.sglist_3.setObjectName(u"sglist_3")
-        self.sglist_3.setGeometry(QRect(0, 20, 681, 631))  # Y + 40
-        self.tctabs.addTab(self.tctabs3, "")
-        self.ctbutton = QPushButton(DetailedTicketCreation)
-        self.ctbutton.setObjectName(u"ctbutton")
-        self.ctbutton.setGeometry(QRect(30, 780, 111, 41))  # Y + 40
-        self.addgarmentbutton = QPushButton(DetailedTicketCreation)
-        self.addgarmentbutton.setObjectName(u"addgarmentbutton")
-        self.addgarmentbutton.setGeometry(QRect(1270, 320, 121, 41))  # Y + 40
-        self.addtogarmentbutton = QPushButton(DetailedTicketCreation)
-        self.addtogarmentbutton.setObjectName(u"addtogarmentbutton")
-        self.addtogarmentbutton.setGeometry(QRect(1270, 460, 121, 41))  # Y + 40
-        self.tickettypebuttonwidget = QWidget(DetailedTicketCreation)
-        self.tickettypebuttonwidget.setObjectName(u"tickettypebuttonwidget")
-        self.tickettypebuttonwidget.setGeometry(QRect(9, 100, 141, 521))  # Y + 40
-        
-        self.pricesframe = QFrame(DetailedTicketCreation)
+        self.pricesframe = QFrame(self.tctabs1)
         self.pricesframe.setObjectName(u"pricesframe")
-        self.pricesframe.setGeometry(QRect(160, 700, 681, 146))  # Y + 40
+        self.pricesframe.setGeometry(QRect(-10, 650, 691, 141))
         self.pricesframe.setFrameShape(QFrame.Shape.StyledPanel)
         self.pricesframe.setFrameShadow(QFrame.Shadow.Raised)
         self.line = QFrame(self.pricesframe)
         self.line.setObjectName(u"line")
-        self.line.setGeometry(QRect(-00, 690, 681, 121))  # Y + 40
+        self.line.setGeometry(QRect(10, -40, 681, 81))
         self.line.setFrameShape(QFrame.Shape.HLine)
         self.line.setFrameShadow(QFrame.Shadow.Sunken)
-
-        # Preserved: Garment Variants ComboBox, placed properly
-        self.garmentvariantsbox = QComboBox(DetailedTicketCreation)
-        self.garmentvariantsbox.setObjectName("garmentvariantsbox")
-        self.garmentvariantsbox.setGeometry(QRect(30, 90, 150, 30))  # Y + 40
+        self.ticketnotes = QTextEdit(self.pricesframe)
+        self.ticketnotes.setObjectName(u"ticketnotes")
+        self.ticketnotes.setGeometry(QRect(10, 3, 441, 131))
         
         self.initial_price_label = QLabel(self.pricesframe)
         self.initial_price_label.setObjectName(u"initial_price_label")
@@ -1221,14 +1249,224 @@ class Ui_DetailedTicketCreation(object):
         self.delivery_fee_label.setObjectName(u"delivery_fee_label")
         self.delivery_fee_label.setGeometry(QRect(400, 90, 271, 20))
         self.delivery_fee_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
-        
+
         self.total_price_label = QLabel(self.pricesframe)
         self.total_price_label.setObjectName(u"total_price_label")
         self.total_price_label.setGeometry(QRect(400, 115, 271, 20))
         self.total_price_label.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        
+        self.tctabs.addTab(self.tctabs1, "")
+        self.tctabs2 = QWidget()
+        self.tctabs2.setObjectName(u"tctabs2")
+        self.ttname_2 = QTextBrowser(self.tctabs2)
+        self.ttname_2.setObjectName(u"ttname_2")
+        self.ttname_2.setGeometry(QRect(0, 60, 691, 31))
+        self.sglist_2 = QTableWidget(self.tctabs2)
+        if (self.sglist_2.columnCount() < 7):
+            self.sglist_2.setColumnCount(7)
+        __qtablewidgetitem7 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(0, __qtablewidgetitem7)
+        __qtablewidgetitem8 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(1, __qtablewidgetitem8)
+        __qtablewidgetitem9 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(2, __qtablewidgetitem9)
+        __qtablewidgetitem10 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(3, __qtablewidgetitem10)
+        __qtablewidgetitem11 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(4, __qtablewidgetitem11)
+        __qtablewidgetitem12 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(5, __qtablewidgetitem12)
+        __qtablewidgetitem13 = QTableWidgetItem()
+        self.sglist_2.setHorizontalHeaderItem(6, __qtablewidgetitem13)
+        self.sglist_2.setObjectName(u"sglist_2")
+        self.sglist_2.setGeometry(QRect(0, 20, 681, 631))
+        palette2 = QPalette()
+        palette2.setBrush(QPalette.Active, QPalette.WindowText, brush)
+        palette2.setBrush(QPalette.Active, QPalette.Button, brush1)
+        palette2.setBrush(QPalette.Active, QPalette.Light, brush2)
+        palette2.setBrush(QPalette.Active, QPalette.Text, brush)
+        palette2.setBrush(QPalette.Active, QPalette.ButtonText, brush)
+        palette2.setBrush(QPalette.Active, QPalette.Base, brush3)
+        palette2.setBrush(QPalette.Active, QPalette.Window, brush4)
+        palette2.setBrush(QPalette.Active, QPalette.Shadow, brush)
+        palette2.setBrush(QPalette.Active, QPalette.HighlightedText, brush)
+        palette2.setBrush(QPalette.Active, QPalette.ToolTipBase, brush5)
+        palette2.setBrush(QPalette.Active, QPalette.ToolTipText, brush5)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
+        palette2.setBrush(QPalette.Active, QPalette.PlaceholderText, brush6)
+#endif
+        palette2.setBrush(QPalette.Inactive, QPalette.WindowText, brush)
+        palette2.setBrush(QPalette.Inactive, QPalette.Button, brush1)
+        palette2.setBrush(QPalette.Inactive, QPalette.Window, brush7)
+        palette2.setBrush(QPalette.Inactive, QPalette.HighlightedText, brush)
+        palette2.setBrush(QPalette.Inactive, QPalette.ToolTipBase, brush5)
+        palette2.setBrush(QPalette.Disabled, QPalette.Text, brush5)
+        palette2.setBrush(QPalette.Disabled, QPalette.ButtonText, brush5)
+        palette2.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush)
+        self.sglist_2.setPalette(palette2)
+        self.sglist_2.setFont(font1)
+        self.sglist_2.setLineWidth(1)
+        self.sglist_2.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.sglist_2.setShowGrid(False)
+        self.sglist_2.setSortingEnabled(True)
+        self.sglist_2.setCornerButtonEnabled(False)
+        self.pricesframe_2 = QFrame(self.tctabs2)
+        self.pricesframe_2.setObjectName(u"pricesframe_2")
+        self.pricesframe_2.setGeometry(QRect(-10, 650, 691, 141))
+        self.pricesframe_2.setFrameShape(QFrame.Shape.StyledPanel)
+        self.pricesframe_2.setFrameShadow(QFrame.Shadow.Raised)
+        self.line_2 = QFrame(self.pricesframe_2)
+        self.line_2.setObjectName(u"line_2")
+        self.line_2.setGeometry(QRect(10, -40, 681, 81))
+        self.line_2.setFrameShape(QFrame.Shape.HLine)
+        self.line_2.setFrameShadow(QFrame.Shadow.Sunken)
+        self.ticketnotes_2 = QTextEdit(self.pricesframe_2)
+        self.ticketnotes_2.setObjectName(u"ticketnotes_2")
+        self.ticketnotes_2.setGeometry(QRect(10, 3, 441, 131))
+        
+        
+        self.initial_price_label_2 = QLabel(self.pricesframe_2)
+        self.initial_price_label_2.setObjectName(u"initial_price_label_2")
+        self.initial_price_label_2.setGeometry(QRect(400, 15, 271, 20))
+        self.initial_price_label_2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
+        self.deductions_label_2 = QLabel(self.pricesframe_2)
+        self.deductions_label_2.setObjectName(u"deductions_label_2")
+        self.deductions_label_2.setGeometry(QRect(400, 40, 271, 20))
+        self.deductions_label_2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.taxes_label_2 = QLabel(self.pricesframe_2)
+        self.taxes_label_2.setObjectName(u"taxes_label_2")
+        self.taxes_label_2.setGeometry(QRect(400, 65, 271, 20))
+        self.taxes_label_2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.delivery_fee_label_2 = QLabel(self.pricesframe_2)
+        self.delivery_fee_label_2.setObjectName(u"delivery_fee_label_2")
+        self.delivery_fee_label_2.setGeometry(QRect(400, 90, 271, 20))
+        self.delivery_fee_label_2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.total_price_label_2 = QLabel(self.pricesframe_2)
+        self.total_price_label_2.setObjectName(u"total_price_label_2")
+        self.total_price_label_2.setGeometry(QRect(400, 115, 271, 20))
+        self.total_price_label_2.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
         
+        self.tctabs.addTab(self.tctabs2, "")
+        self.tctabs3 = QWidget()
+        self.tctabs3.setObjectName(u"tctabs3")
         
+        self.ttname_3 = QTextBrowser(self.tctabs3)
+        self.ttname_3.setObjectName(u"ttname_3")
+        self.ttname_3.setGeometry(QRect(0, 60, 691, 31))
+        
+        self.sglist_3 = QTableWidget(self.tctabs3)
+        if (self.sglist_3.columnCount() < 7):
+            self.sglist_3.setColumnCount(7)
+        __qtablewidgetitem14 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(0, __qtablewidgetitem14)
+        __qtablewidgetitem15 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(1, __qtablewidgetitem15)
+        __qtablewidgetitem16 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(2, __qtablewidgetitem16)
+        __qtablewidgetitem17 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(3, __qtablewidgetitem17)
+        __qtablewidgetitem18 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(4, __qtablewidgetitem18)
+        __qtablewidgetitem19 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(5, __qtablewidgetitem19)
+        __qtablewidgetitem20 = QTableWidgetItem()
+        self.sglist_3.setHorizontalHeaderItem(6, __qtablewidgetitem20)
+        self.sglist_3.setObjectName(u"sglist_3")
+        self.sglist_3.setGeometry(QRect(0, 20, 681, 631))
+        palette3 = QPalette()
+        palette3.setBrush(QPalette.Active, QPalette.WindowText, brush)
+        palette3.setBrush(QPalette.Active, QPalette.Button, brush1)
+        palette3.setBrush(QPalette.Active, QPalette.Light, brush2)
+        palette3.setBrush(QPalette.Active, QPalette.Text, brush)
+        palette3.setBrush(QPalette.Active, QPalette.ButtonText, brush)
+        palette3.setBrush(QPalette.Active, QPalette.Base, brush3)
+        palette3.setBrush(QPalette.Active, QPalette.Window, brush4)
+        palette3.setBrush(QPalette.Active, QPalette.Shadow, brush)
+        palette3.setBrush(QPalette.Active, QPalette.HighlightedText, brush)
+        palette3.setBrush(QPalette.Active, QPalette.ToolTipBase, brush5)
+        palette3.setBrush(QPalette.Active, QPalette.ToolTipText, brush5)
+#if QT_VERSION >= QT_VERSION_CHECK(5, 12, 0)
+        palette3.setBrush(QPalette.Active, QPalette.PlaceholderText, brush6)
+#endif
+        palette3.setBrush(QPalette.Inactive, QPalette.WindowText, brush)
+        palette3.setBrush(QPalette.Inactive, QPalette.Button, brush1)
+        palette3.setBrush(QPalette.Inactive, QPalette.Window, brush7)
+        palette3.setBrush(QPalette.Inactive, QPalette.HighlightedText, brush)
+        palette3.setBrush(QPalette.Inactive, QPalette.ToolTipBase, brush5)
+        palette3.setBrush(QPalette.Disabled, QPalette.Text, brush5)
+        palette3.setBrush(QPalette.Disabled, QPalette.ButtonText, brush5)
+        palette3.setBrush(QPalette.Disabled, QPalette.HighlightedText, brush)
+        self.sglist_3.setPalette(palette3)
+        self.sglist_3.setSortingEnabled(True)
+        
+        self.pricesframe_3 = QFrame(self.tctabs3)
+        self.pricesframe_3.setObjectName(u"pricesframe_3")
+        self.pricesframe_3.setGeometry(QRect(-10, 650, 691, 141))
+        self.pricesframe_3.setFrameShape(QFrame.Shape.StyledPanel)
+        self.pricesframe_3.setFrameShadow(QFrame.Shadow.Raised)
+        
+        self.line_3 = QFrame(self.pricesframe_3)
+        self.line_3.setObjectName(u"line_3")
+        self.line_3.setGeometry(QRect(10, -40, 681, 81))
+        self.line_3.setFrameShape(QFrame.Shape.HLine)
+        self.line_3.setFrameShadow(QFrame.Shadow.Sunken)
+        
+        self.ticketnotes_3 = QTextEdit(self.pricesframe_3)
+        self.ticketnotes_3.setObjectName(u"ticketnotes_3")
+        self.ticketnotes_3.setGeometry(QRect(10, 3, 441, 131))
+        
+        self.initial_price_label_3 = QLabel(self.pricesframe_3)
+        self.initial_price_label_3.setObjectName(u"initial_price_label_3")
+        self.initial_price_label_3.setGeometry(QRect(400, 15, 271, 20))
+        self.initial_price_label_3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.deductions_label_3 = QLabel(self.pricesframe_3)
+        self.deductions_label_3.setObjectName(u"deductions_label_3")
+        self.deductions_label_3.setGeometry(QRect(400, 40, 271, 20))
+        self.deductions_label_3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.taxes_label_3 = QLabel(self.pricesframe_3)
+        self.taxes_label_3.setObjectName(u"taxes_label_3")
+        self.taxes_label_3.setGeometry(QRect(400, 65, 271, 20))
+        self.taxes_label_3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.delivery_fee_label_3 = QLabel(self.pricesframe_3)
+        self.delivery_fee_label_3.setObjectName(u"delivery_fee_label_3")
+        self.delivery_fee_label_3.setGeometry(QRect(400, 90, 271, 20))
+        self.delivery_fee_label_3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
+        self.total_price_label_3 = QLabel(self.pricesframe_3)
+        self.total_price_label_3.setObjectName(u"total_price_label_3")
+        self.total_price_label_3.setGeometry(QRect(400, 115, 271, 20))
+        self.total_price_label_3.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+        
+        self.tctabs.addTab(self.tctabs3, "")
+        self.tickettypebuttonwidget = QWidget(DetailedTicketCreation)
+        self.tickettypebuttonwidget.setObjectName(u"tickettypebuttonwidget")
+        self.tickettypebuttonwidget.setGeometry(QRect(50, 120, 141, 521))
+        
+        self.ctbutton = QPushButton(DetailedTicketCreation)
+        self.ctbutton.setObjectName(u"ctbutton")
+        self.ctbutton.setGeometry(QRect(30, 784, 111, 41))
+        
+        self.addgarmentbutton = QPushButton(DetailedTicketCreation)
+        self.addgarmentbutton.setObjectName(u"addgarmentbutton")
+        self.addgarmentbutton.setGeometry(QRect(1270, 340, 121, 41))
+        
+        self.addtogarmentbutton = QPushButton(DetailedTicketCreation)
+        self.addtogarmentbutton.setObjectName(u"addtogarmentbutton")
+        self.addtogarmentbutton.setGeometry(QRect(1270, 480, 121, 41))
+        
+        self.garmentvariantsbox = QComboBox(DetailedTicketCreation)
+        self.garmentvariantsbox.setObjectName("garmentvariantsbox")
+        self.garmentvariantsbox.setGeometry(QRect(30, 90, 150, 30))
+        
+
+       
         
         self.retranslateUi(DetailedTicketCreation)
         self.tctabs.setCurrentIndex(0)
@@ -1252,8 +1490,8 @@ class Ui_DetailedTicketCreation(object):
 "hr { height: 1px; border-width: 0; }\n"
 "li.unchecked::marker { content: \"\\2610\"; }\n"
 "li.checked::marker { content: \"\\2612\"; }\n"
-"</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
-"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>", None))
+"</style></head><body style=\" font-family:'Segoe UI'; font-size:7pt; font-weight:400; font-style:normal;\">\n"
+"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:9pt;\"><br /></p></body></html>", None))
         ___qtablewidgetitem = self.sglist.horizontalHeaderItem(0)
         ___qtablewidgetitem.setText(QCoreApplication.translate("DetailedTicketCreation", u"Pieces", None));
         ___qtablewidgetitem1 = self.sglist.horizontalHeaderItem(1)
@@ -1275,8 +1513,8 @@ class Ui_DetailedTicketCreation(object):
 "hr { height: 1px; border-width: 0; }\n"
 "li.unchecked::marker { content: \"\\2610\"; }\n"
 "li.checked::marker { content: \"\\2612\"; }\n"
-"</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
-"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>", None))
+"</style></head><body style=\" font-family:'Segoe UI'; font-size:7pt; font-weight:400; font-style:normal;\">\n"
+"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:9pt;\"><br /></p></body></html>", None))
         ___qtablewidgetitem7 = self.sglist_2.horizontalHeaderItem(0)
         ___qtablewidgetitem7.setText(QCoreApplication.translate("DetailedTicketCreation", u"# of Pieces", None));
         ___qtablewidgetitem8 = self.sglist_2.horizontalHeaderItem(1)
@@ -1298,8 +1536,8 @@ class Ui_DetailedTicketCreation(object):
 "hr { height: 1px; border-width: 0; }\n"
 "li.unchecked::marker { content: \"\\2610\"; }\n"
 "li.checked::marker { content: \"\\2612\"; }\n"
-"</style></head><body style=\" font-family:'Segoe UI'; font-size:9pt; font-weight:400; font-style:normal;\">\n"
-"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px;\"><br /></p></body></html>", None))
+"</style></head><body style=\" font-family:'Segoe UI'; font-size:7pt; font-weight:400; font-style:normal;\">\n"
+"<p align=\"center\" style=\"-qt-paragraph-type:empty; margin-top:0px; margin-bottom:0px; margin-left:0px; margin-right:0px; -qt-block-indent:0; text-indent:0px; font-size:9pt;\"><br /></p></body></html>", None))
         ___qtablewidgetitem14 = self.sglist_3.horizontalHeaderItem(0)
         ___qtablewidgetitem14.setText(QCoreApplication.translate("DetailedTicketCreation", u"# of Pieces", None));
         ___qtablewidgetitem15 = self.sglist_3.horizontalHeaderItem(1)
@@ -1318,14 +1556,23 @@ class Ui_DetailedTicketCreation(object):
         self.ctbutton.setText(QCoreApplication.translate("DetailedTicketCreation", u"Create Ticket", None))
         self.addgarmentbutton.setText(QCoreApplication.translate("DetailedTicketCreation", u"Add Garment", None))
         self.addtogarmentbutton.setText(QCoreApplication.translate("DetailedTicketCreation", u"Add Garment Details", None))
-
+        self.label_5.setText(QCoreApplication.translate("DetailedTicketCreation", u"Detailed Ticket Creation", None))
         self.initial_price_label.setText(QCoreApplication.translate("DetailedTicketCreation", "Initial Price: $0.00", None))
         self.deductions_label.setText(QCoreApplication.translate("DetailedTicketCreation", "Deductions: $0.00", None))
         self.taxes_label.setText(QCoreApplication.translate("DetailedTicketCreation", "Taxes: $0.00", None))
         self.delivery_fee_label.setText(QCoreApplication.translate("DetailedTicketCreation", "Delivery Fee: $0.00", None))
         self.total_price_label.setText(QCoreApplication.translate("DetailedTicketCreation", "Total Price: $0.00", None))
-        self.label_5.setText(QCoreApplication.translate("DetailedTicketCreation", u"Detailed Ticket Creation", None))
-    # retranslateUi
+        self.initial_price_label_2.setText(QCoreApplication.translate("DetailedTicketCreation", "Initial Price: $0.00", None))
+        self.deductions_label_2.setText(QCoreApplication.translate("DetailedTicketCreation", "Deductions: $0.00", None))
+        self.taxes_label_2.setText(QCoreApplication.translate("DetailedTicketCreation", "Taxes: $0.00", None))
+        self.delivery_fee_label_2.setText(QCoreApplication.translate("DetailedTicketCreation", "Delivery Fee: $0.00", None))
+        self.total_price_label_2.setText(QCoreApplication.translate("DetailedTicketCreation", "Total Price: $0.00", None))
+        self.initial_price_label_3.setText(QCoreApplication.translate("DetailedTicketCreation", "Initial Price: $0.00", None))
+        self.deductions_label_3.setText(QCoreApplication.translate("DetailedTicketCreation", "Deductions: $0.00", None))
+        self.taxes_label_3.setText(QCoreApplication.translate("DetailedTicketCreation", "Taxes: $0.00", None))
+        self.delivery_fee_label_3.setText(QCoreApplication.translate("DetailedTicketCreation", "Delivery Fee: $0.00", None))
+        self.total_price_label_3.setText(QCoreApplication.translate("DetailedTicketCreation", "Total Price: $0.00", None))
+           # retranslateUi
 
 
 class Ui_QuickTicketCreation(object):

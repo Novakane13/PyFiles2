@@ -1,7 +1,7 @@
 {
     "editor.defaultFormatter": "esbenp.prettier-vscode",
     "python.languageServer": "Pylance",
-    "python.analysis.autoIndent": false,
+    "python.analysis.autoIndent": true,
     "python.analysis.autoFormatStrings": true,
     "python.analysis.inlayHints.callArgumentNames": "all",
     "python.analysis.inlayHints.functionReturnTypes": true,
