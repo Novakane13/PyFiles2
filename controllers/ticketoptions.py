@@ -167,7 +167,7 @@ class TicketOptionsWindow(QMainWindow):
             self.ui.plist.addItem(item)
 
         # Load saved upcharges
-        cursor.execute("SELECT id, description, price FROM upcharges")
+        cursor.execute("SELECT id, name, price FROM upcharges")
         upcharges = cursor.fetchall()
         for upcharge_id, upcharge_name, upcharge_amount in upcharges:
             item = QListWidgetItem(f"{upcharge_name} - ${upcharge_amount}")

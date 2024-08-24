@@ -63,7 +63,7 @@ class EmployeeLogin(QDialog):
 
         password_hash = hash_password(password)
         try:
-            cursor.execute("INSERT INTO employees (name, password_hash) VALUES (?, ?)", (employee_name, password_hash))
+            cursor.execute("INSERT INTO employees (employee_name, password_hash) VALUES (?, ?)", (employee_name, password_hash))
             conn.commit()
             QMessageBox.information(self, "Employee Created", f"Employee {employee_name} created successfully!")
             self.ui.EmployeeNameLogin.clear()

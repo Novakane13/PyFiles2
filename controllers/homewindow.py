@@ -10,9 +10,9 @@ from controllers.tickettype import TicketTypeCreationWindow
 from controllers.garmentscolors import GarmentsColorsWindow
 from controllers.ticketoptions import TicketOptionsWindow
 from controllers.customeraccount import CustomerAccountWindow
-from garmentpricing import GarmentPricingWindow
-from detailedticket import DetailedTicketWindow
-from quickticket import QuickTicketWindow
+from controllers.garmentpricing import GarmentPricingWindow
+from controllers.detailedticket import DetailedTicketWindow
+from controllers.quickticket import QuickTicketWindow
 
 class MainWindow(QMainWindow):
     IMAGE_PATH_FILE = "image_path.txt"

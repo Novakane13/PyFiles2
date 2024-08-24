@@ -4,6 +4,7 @@ from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
 from views.Test import Ui_TicketTypeCreation
+from resources import resources_rc
 
 import sqlite3
 import os
@@ -61,7 +62,7 @@ class TicketTypeCreationWindow(QMainWindow):
             item.setData(Qt.UserRole, texture_id)
             self.ui.tlist.addItem(item)
 
-        cursor.execute("SELECT id, description, price FROM Upcharges")
+        cursor.execute("SELECT id, name, price FROM Upcharges")
         upcharges = cursor.fetchall()
         for upcharge_id, description, price in upcharges:
             item = QListWidgetItem(f"{description} - ${price:.2f}")

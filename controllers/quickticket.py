@@ -6,8 +6,7 @@ from PySide6.QtWidgets import QMainWindow, QMessageBox, QWidget, QVBoxLayout, QD
 from PySide6.QtCore import QDateTime, Signal, QEvent, QDate, QTime
 #from PySide6.QtGui import 
 from views.Test import Ui_QuickTicketCreation
-from detailedticket import DetailedTicketWindow
-from views.Test import get_next_ticket_number
+
 
 
 

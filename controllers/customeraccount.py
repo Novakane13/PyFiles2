@@ -1,6 +1,7 @@
 import sys
 import sqlite3
 import os
+from PySide6.QtGui import QBrush, QColor   
 from PySide6.QtWidgets import QApplication, QMainWindow, QPushButton, QTableWidgetItem, QMessageBox
 from PySide6.QtCore import QEvent
 from views.Test import Ui_CustomerAccount2
@@ -9,6 +10,8 @@ from controllers.quickticket import QuickTicketWindow
 from controllers.detailedticket import DetailedTicketWindow
 from PySide6.QtCore import Qt, QEvent, Signal
 from views.Test import Ui_CustomerAccount2  # Ensure this import is correct
+from controllers.payment import PaymentWindow
+
 
 class CustomerAccountWindow(QMainWindow):
     convert_to_detailed_ticket = Signal(dict)
@@ -17,18 +20,23 @@ class CustomerAccountWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_CustomerAccount2()
         self.ui.setupUi(self)
-
+        
         self.customer_data1 = customer_data1 or {}
         self.customer_data2 = customer_data2 or {}
-        self.employee_id = employee_id
-
         self.customer_id1 = self.customer_data1.get("id", None)
         self.customer_id2 = self.customer_data2.get("id", None)
+        
+        self.employee_id = employee_id
+        
+        self.update_total_owed()
+        
+        self.selected_tickets = set()
 
         self.detailed_ticket_window = None
 
         self.load_customer_data_page1(self.customer_data1)
         self.load_customer_data_page2(self.customer_data2)
+        
 
         self.populate_ticket_type_buttons()
 
@@ -37,8 +45,8 @@ class CustomerAccountWindow(QMainWindow):
 
         self.ui.pushButton_16.clicked.connect(self.show_page2)
         self.ui.pushButton_3.clicked.connect(self.show_page1)
-        self.ui.pushButton.clicked.connect(self.open_search_window_page1)
-        self.ui.pushButton_2.clicked.connect(self.open_search_window_page2)
+        self.ui.ncbutton.clicked.connect(self.open_search_window_page1)
+        self.ui.ncbutton_2.clicked.connect(self.open_search_window_page2)
         self.ui.qtbutton.clicked.connect(self.open_quick_ticket_page1)
         self.ui.qtbutton_2.clicked.connect(self.open_quick_ticket_page2)
 
@@ -56,6 +64,9 @@ class CustomerAccountWindow(QMainWindow):
             self.load_tickets(self.customer_id1, self.ui.ctlist)
         if self.customer_id2:
             self.load_tickets(self.customer_id2, self.ui.ctlist_2)
+            
+        self.ui.ctlist.itemClicked.connect(lambda item: self.toggle_ticket_selection(item, 1))
+        self.ui.ctlist_2.itemClicked.connect(lambda item: self.toggle_ticket_selection(item, 2))
 
         self.ui.ctlist.itemDoubleClicked.connect(
             lambda: self.convert_selected_quick_ticket(self.ui.ctlist, self.customer_id1)
@@ -70,6 +81,317 @@ class CustomerAccountWindow(QMainWindow):
         self.ui.changetodetailedticket.clicked.connect(
             lambda: self.convert_selected_quick_ticket(self.ui.ctlist_2, self.customer_id2)
         )
+        
+        self.ui.paybutton.clicked.connect(self.initiate_payment)
+        self.ui.puandpbutton.clicked.connect(self.process_pickup_and_payment)
+        self.ui.puandpbutton_2.clicked.connect(self.process_pickup_and_payment)
+        
+        if self.customer_id1:
+            self.load_tickets(self.customer_id1, self.ui.ctlist)
+            self.update_total_owed()
+        if self.customer_id2:
+            self.load_tickets(self.customer_id2, self.ui.ctlist_2)
+            self.update_total_owed()
+            
+            
+    def update_ticket_status(self, ticket_number):
+        # Find the ticket in ctlist (Page 1) and ctlist_2 (Page 2)
+        for ctlist in [self.ui.ctlist, self.ui.ctlist_2]:
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:  # Assuming ticket number is in column 4
+                    # Mark payment as complete by coloring the row
+                    for col in range(ctlist.columnCount()):
+                        ctlist.item(row, col).setBackground(QBrush(QColor("#00002b")))  # Dark blue for paid
+                    break
+                
+    def mark_tickets_as_paid_in_ui(self):
+        """ Mark the paid tickets as unselectable and change their color to #00002b. """
+        for page, ticket_number in self.selected_tickets:
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:
+                    for column in range(ctlist.columnCount()):
+                        ctlist.item(row, column).setBackground(QBrush(QColor(0, 0, 43)))  # Mark as paid
+        self.selected_tickets.clear()
+        self.update_total_owed()
+
+        
+        
+    def update_total_owed(self):
+        """ Retrieve the total amount owed for all unpaid tickets directly from the database and display it on both pages. """
+        total_owed_page1 = 0.0
+        total_owed_page2 = 0.0
+
+        # Connect to the database
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Retrieve total amount owed for unpaid tickets for customer 1 (Page 1)
+        if self.customer_id1:
+            cursor.execute("""
+                SELECT SUM(total_price) 
+                FROM Tickets 
+                WHERE customer_id = ? AND payment = 0 AND pickedup = 0
+            """, (self.customer_id1,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                total_owed_page1 = result[0]
+
+        # Retrieve total amount owed for unpaid tickets for customer 2 (Page 2)
+        if self.customer_id2:
+            cursor.execute("""
+                SELECT SUM(total_price) 
+                FROM Tickets 
+                WHERE customer_id = ? AND payment = 0 AND pickedup = 0
+            """, (self.customer_id2,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                total_owed_page2 = result[0]
+
+        conn.close()
+
+        # Display the total owed in the QLabel widgets
+        self.ui.totalowed.setText(f"${total_owed_page1:.2f}")
+        self.ui.totalowed_2.setText(f"${total_owed_page2:.2f}")
+
+
+
+
+
+    def process_payment(self):
+        if not self.selected_tickets:
+            QMessageBox.warning(self, "No Tickets Selected", "Please select at least one ticket for payment.")
+            return
+
+        # Retrieve payment method
+        payment_method = self.get_selected_payment_method()
+        if not payment_method:
+            QMessageBox.warning(self, "No Payment Method", "Please select a payment method.")
+            return
+
+        # Mark tickets as paid
+        for page, ticket_number in self.selected_tickets:
+            # Update the database to mark the ticket as paid (setting the payment status to 1)
+            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+            db_path = os.path.join(project_root, 'models', 'pos_system.db')
+            conn = sqlite3.connect(db_path)
+            cursor = conn.cursor()
+            
+            cursor.execute("UPDATE Tickets SET payment = 1 WHERE ticket_number = ?", (ticket_number,))
+            
+            conn.commit()
+            conn.close()
+
+            # Update the ctlist to reflect the payment (Page 1 or Page 2)
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:  # Assuming column 4 has the ticket number
+                    # Mark payment as complete by coloring the row
+                    for col in range(ctlist.columnCount()):
+                        ctlist.item(row, col).setBackground(QBrush(QColor("#00002b")))  # Dark blue for paid
+                    # Set payment status to 1 (or some visual confirmation)
+                    ctlist.setItem(row, 8, QTableWidgetItem('1'))  # Assuming column 8 holds payment status
+                    break
+
+       
+        self.clear_selected_tickets()
+
+        
+        self.update_total_owed()
+
+        QMessageBox.information(self, "Payment", "Payment has been processed successfully!")
+        
+
+    def process_pickup_and_payment(self):
+        if not self.selected_tickets:
+            QMessageBox.warning(self, "No Tickets Selected", "Please select at least one ticket for pickup and payment.")
+            return
+
+        # Retrieve payment method
+        payment_method = self.get_selected_payment_method()
+        if not payment_method:
+            QMessageBox.warning(self, "No Payment Method", "Please select a payment method.")
+            return
+
+        # Mark tickets as paid and picked up
+        for page, ticket_number in self.selected_tickets:
+            # Update the database to mark the ticket as paid and picked up
+            conn = sqlite3.connect('pos_system.db')  # Use your database connection
+            cursor = conn.cursor()
+            cursor.execute("UPDATE Tickets SET payment = 1, pickedup = 1 WHERE ticket_number = ?", (ticket_number,))
+            conn.commit()
+            conn.close()
+
+            # Update the ctlist to reflect the payment and pickup (Page 1 or Page 2)
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:  # Assuming column 4 has the ticket number
+                    # Mark payment and pickup as complete
+                    for col in range(ctlist.columnCount()):
+                        ctlist.item(row, col).setBackground(QBrush(QColor("#00002b")))  # Dark blue for paid
+                    # Set payment status to 1 (paid) and picked up status to ✓ (checkmark)
+                    ctlist.setItem(row, 8, QTableWidgetItem('1'))  # Assuming column 8 holds payment status
+                    ctlist.setItem(row, 0, QTableWidgetItem('✓'))  # Assuming column 0 holds pickup status
+                    break
+
+        # Clear selected tickets after pickup and payment is processed
+        self.clear_selected_tickets()
+
+        # Update total owed
+        self.update_total_owed()
+
+        QMessageBox.information(self, "Pickup and Payment", "Pickup and payment have been processed successfully!")
+
+
+    def clear_selected_tickets(self):
+        """ Clears selected tickets and unhighlights them. """
+        for page, ticket_number in self.selected_tickets:
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:
+                    # Unhighlight ticket
+                    for col in range(ctlist.columnCount()):
+                        ctlist.item(row, col).setBackground(QBrush(QColor(255, 255, 255)))  # Reset to default color
+                    break
+        # Clear the selection
+        self.selected_tickets.clear()
+        
+    def update_total_owed(self):
+        """ Retrieve the total amount owed for all unpaid tickets directly from the database and display it on both pages. """
+        total_owed_page1 = 0.0
+        total_owed_page2 = 0.0
+
+        # Connect to the database
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+
+        # Retrieve total amount owed for unpaid tickets for customer 1 (Page 1)
+        if self.customer_id1:
+            cursor.execute("""
+                SELECT SUM(total_price) 
+                FROM Tickets 
+                WHERE customer_id = ? AND payment = 0
+            """, (self.customer_id1,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                total_owed_page1 = result[0]
+
+        # Retrieve total amount owed for unpaid tickets for customer 2 (Page 2)
+        if self.customer_id2:
+            cursor.execute("""
+                SELECT SUM(total_price) 
+                FROM Tickets 
+                WHERE customer_id = ? AND payment = 0
+            """, (self.customer_id2,))
+            result = cursor.fetchone()
+            if result and result[0] is not None:
+                total_owed_page2 = result[0]
+
+        conn.close()
+
+        # Display the total owed in the QLineEdit widgets (which should not be editable)
+        self.ui.totalowed.setText(f"${total_owed_page1:.2f}")
+        self.ui.totalowed_2.setText(f"${total_owed_page2:.2f}")
+
+
+
+
+
+    def toggle_ticket_selection(self, item, page):
+        """ Toggle the selection of a ticket (highlight/unhighlight and add/remove from selected list). """
+        row = item.row()
+        ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+        ticket_number = ctlist.item(row, 4).text()  # Assuming ticket number is in column 4
+
+        # Check if the ticket is already marked as paid
+        if ctlist.item(row, 7).background().color().name() == '#00002b':
+            return  # Ticket is already paid, ignore selection
+
+        if (page, ticket_number) in self.selected_tickets:
+            # Deselect ticket: remove from selected list and unhighlight
+            self.selected_tickets.remove((page, ticket_number))
+            for column in range(ctlist.columnCount()):
+                ctlist.item(row, column).setBackground(QBrush(QColor(0, 0, 0)))  
+        else:
+            # Select ticket: add to selected list and highlight
+            self.selected_tickets.add((page, ticket_number))
+            for column in range(ctlist.columnCount()):
+                ctlist.item(row, column).setBackground(QBrush(QColor(255, 0, 0)))
+    
+    def initiate_payment(self):
+        """ Initiate payment for the selected tickets. """
+        if not self.selected_tickets:
+            QMessageBox.warning(self, "No Tickets Selected", "Please select at least one ticket for payment.")
+            return
+
+        # Calculate the total cost of selected tickets
+        total_cost = 0
+        selected_ticket_data = []
+
+        for page, ticket_number in self.selected_tickets:
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:  # Assuming ticket number is in column 4
+                    ticket_cost = float(ctlist.item(row, 7).text().replace('$', ''))  # Assuming price is in column 7
+                    total_cost += ticket_cost
+                    selected_ticket_data.append((ticket_number, ticket_cost))
+                    break
+        
+        self.update_total_owed()  # Call this after relevant events such as payment or ticket pickup
+
+        # Open the payment window with the selected ticket data and total cost
+        self.payment_window = PaymentWindow(selected_ticket_data, total_cost, self)
+        self.payment_window.show()
+
+    def update_ticket_status(self, ticket_number, status):
+        """
+        Update the status of a ticket in the ctlist (Page 1 or Page 2).
+        This could be called after payment or pickup to update the UI.
+        
+        :param ticket_number: The number of the ticket to update.
+        :param status: The new status of the ticket (e.g., 'Paid', 'Picked Up').
+        """
+        # Look for the ticket in both Page 1 and Page 2's ticket lists
+        for ctlist in [self.ui.ctlist, self.ui.ctlist_2]:
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == str(ticket_number):  # Assuming ticket number is in column 4
+                    # Update the status in column 5 (or whichever column represents the status)
+                    ctlist.setItem(row, 5, QTableWidgetItem(status))
+                    
+                    # Optionally, change the background color or provide some other visual indication
+                    if status == 'Paid':
+                        for col in range(ctlist.columnCount()):
+                            ctlist.item(row, col).setBackground(QBrush(QColor("#00002b")))  # Dark blue for paid
+                    elif status == 'Picked Up':
+                        ctlist.setItem(row, 0, QTableWidgetItem('✓'))  # Add checkmark for picked up
+                    break
+                
+                
+    
+    
+
+
+
+    def cancel_selection(self):
+        """ Cancel all ticket selections and reset highlights. """
+        for page, ticket_number in self.selected_tickets:
+            ctlist = self.ui.ctlist if page == 1 else self.ui.ctlist_2
+            for row in range(ctlist.rowCount()):
+                if ctlist.item(row, 4).text() == ticket_number:
+                    for column in range(ctlist.columnCount()):
+                        ctlist.item(row, column).setBackground(QBrush(QColor(0, 0, 0)))  # Reset to black
+        self.selected_tickets.clear()
+        self.update_total_owed()  # Call this after relevant events such as payment or ticket pickup
+
+
+    def keyPressEvent(self, event):
+        """ Handle key press events (ESC to cancel selections). """
+        if event.key() == Qt.Key_Escape:
+            self.cancel_selection()
 
     def load_tickets(self, customer_id, ctlist):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -78,7 +400,7 @@ class CustomerAccountWindow(QMainWindow):
         cursor = conn.cursor()
 
         cursor.execute("""
-            SELECT t.ticket_number, tt.name as ticket_type, t.date_created, t.date_due, t.total_price, t.pieces
+            SELECT t.ticket_number, tt.name as ticket_type, t.date_created, t.date_due, t.total_price, t.pieces, t.payment
             FROM Tickets t
             JOIN TicketTypes tt ON t.ticket_type_id = tt.id
             WHERE t.customer_id = ?
@@ -100,10 +422,11 @@ class CustomerAccountWindow(QMainWindow):
         ctlist.setRowCount(0)
 
         for ticket in detailed_tickets:
-            ticket_number, ticket_type, date_created, date_due, total_price, pieces = ticket
+            ticket_number, ticket_type, date_created, date_due, total_price, pieces, payment_status = ticket
             row_position = ctlist.rowCount()
             ctlist.insertRow(row_position)
 
+            # Add ticket details to the table
             ctlist.setItem(row_position, 0, QTableWidgetItem(""))  
             ctlist.setItem(row_position, 1, QTableWidgetItem(ticket_type))  
             ctlist.setItem(row_position, 2, QTableWidgetItem(date_created))  
@@ -111,8 +434,14 @@ class CustomerAccountWindow(QMainWindow):
             ctlist.setItem(row_position, 4, QTableWidgetItem(str(ticket_number))) 
             ctlist.setItem(row_position, 5, QTableWidgetItem("None"))  
             ctlist.setItem(row_position, 6, QTableWidgetItem(str(pieces))) 
-            ctlist.setItem(row_position, 7, QTableWidgetItem(f"${total_price:.2f}"))  
-        
+            ctlist.setItem(row_position, 7, QTableWidgetItem(f"${total_price:.2f}"))
+
+            # Check payment status and apply color accordingly
+            if payment_status == 1:  # If ticket is paid
+                for col in range(ctlist.columnCount()):
+                    ctlist.item(row_position, col).setBackground(QBrush(QColor("#00002b")))  # Dark blue for paid
+
+        # Load quick tickets as before
         for ticket in quick_tickets:
             ticket_number, ticket_type, due_date1, pieces1, notes1, all_notes, ticket_type_id1, ticket_type_id2, ticket_type_id3, date_created = ticket
             row_position = ctlist.rowCount()
@@ -139,6 +468,7 @@ class CustomerAccountWindow(QMainWindow):
                 'all_notes': all_notes,
                 'date_created': date_created
             })
+
 
     def populate_ticket_type_buttons(self):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))

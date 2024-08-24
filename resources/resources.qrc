@@ -1,0 +1,64 @@
+<RCC>
+  <qresource prefix="images">
+    <file>Logo2.jpg</file>
+    <file>hanger1.png</file>
+    <file>hanger2.png</file>
+    <file>hanger3.png</file>
+    <file>hanger4.png</file>
+    <file>hangerdown.png</file>
+    <file>hangerleft.png</file>
+    <file>hangeronlyright.png</file>
+    <file>hangeronly2.png</file>
+    <file>hangeronly.png</file>
+    <file>hangerwindow.jpg</file>
+    <file>OGDC-Logo.jpg</file>
+  </qresource>
+  <qresource prefix="icons">
+    <file>2 piece suit.jpg</file>
+    <file>3 piece suit.jpg</file>
+    <file>AnimalPrint.jpg</file>
+    <file>Argyle.jpg</file>
+    <file>Beaded.jpg</file>
+    <file>Blank Shirt picture - Copy.jpg</file>
+    <file>Blank Shirt picture.jpg</file>
+    <file>Blanket.jpg</file>
+    <file>Blazer.jpg</file>
+    <file>Blouse.jpg</file>
+    <file>Cashmere.png</file>
+    <file>Check.jpg</file>
+    <file>Comforter.jpg</file>
+    <file>Down.jpg</file>
+    <file>Dress.jpg</file>
+    <file>EBlanket.jpg</file>
+    <file>Elastic_Stretchy.jpg</file>
+    <file>F+F.jpg</file>
+    <file>Faded.jpg</file>
+    <file>Fraying.jpg</file>
+    <file>Geometric.jpg</file>
+    <file>Jacket.jpg</file>
+    <file>Jeans.jpg</file>
+    <file>Jumper.jpg</file>
+    <file>LaunderedDressShirt.jpg</file>
+    <file>Leather.jpg</file>
+    <file>Logo.jpg</file>
+    <file>Overalls.jpg</file>
+    <file>Pants.jpg</file>
+    <file>Patterns.jpg</file>
+    <file>PendeltonBlanket.jpg</file>
+    <file>Pillow.jpg</file>
+    <file>Plaid.jpg</file>
+    <file>Pleather.jpg</file>
+    <file>Quilt.jpg</file>
+    <file>Robe.jpg</file>
+    <file>Sequins.jpg</file>
+    <file>sheets.jpg</file>
+    <file>Shirt.jpg</file>
+    <file>Stretchy.jpg</file>
+    <file>Striped.jpg</file>
+    <file>Sweater.jpg</file>
+    <file>TextPattern.jpg</file>
+    <file>Tie.jpg</file>
+    <file>Wool.jpg</file>
+    <file>Worn.jpg</file>
+  </qresource>
+</RCC>

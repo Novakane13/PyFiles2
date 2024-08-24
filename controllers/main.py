@@ -8,7 +8,7 @@ project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.append(project_root)
 
 from controllers.homewindow import MainWindow
-from employeelogin import EmployeeLogin  # Import the EmployeeLogin
+from controllers.employeelogin import EmployeeLogin  # Import the EmployeeLogin
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
