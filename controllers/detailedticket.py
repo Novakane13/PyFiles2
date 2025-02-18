@@ -1,13 +1,12 @@
-import re
-import sys
 import sqlite3
 import os
 from datetime import datetime
-from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QTreeWidgetItem, QVBoxLayout, QComboBox, QPushButton, QApplication, QMessageBox, QTableWidgetItem, QAbstractItemView 
-from PySide6.QtGui import QIcon, QPixmap
-from PySide6.QtCore import Qt, Signal, QDate, QDateTime
-from views.Test import Ui_DetailedTicketCreation
-from views.Test import get_next_ticket_number
+from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox, QTableWidgetItem, QAbstractItemView,\
+    QTreeWidgetItem 
+from PySide6.QtGui import QIcon
+from PySide6.QtCore import Qt, Signal
+from views.detailedticketui import Ui_DetailedTicketCreation 
+from views.utils import get_next_ticket_number 
 
 
 
@@ -16,15 +15,17 @@ class DetailedTicketWindow(QMainWindow):
 
     def __init__(self, customer_id=None, employee_id=None, tt_name=None, ticket_type_id1=None, tt_name2=None, ticket_type_id2=None, tt_name3=None, ticket_type_id3=None,
                  pieces1=1, pieces2=None, pieces3=None, due_date1=None, due_date2=None, due_date3=None,
-                 notes1=None, notes2=None, notes3=None, all_notes=None, parent=None):
+                 notes1=None, notes2=None, notes3=None, all_notes=None, ticket_number=None, parent=None):
         super(DetailedTicketWindow, self).__init__(parent)
         self.ui = Ui_DetailedTicketCreation()
         self.ui.setupUi(self)
         
+        self.converted_ticket_number = ticket_number
 
         # Store customer and employee IDs
         self.customer_id = customer_id
         self.employee_id = employee_id
+        self.selected_variant_row = None
 
         # Ticket details for three tabs
         self.tt_name = tt_name
@@ -53,32 +54,24 @@ class DetailedTicketWindow(QMainWindow):
         self.garments_per_tab = {0: [], 1: [], 2: []}
 
         # Connect UI elements
-        self.ui.canceltbutton.clicked.connect(self.close)  # Close functionality
-        self.ui.ctbutton.clicked.connect(self.create_ticket)  # Create ticket functionality
-        self.ui.tctabs.currentChanged.connect(self.on_tab_change)  # Handle tab changes
+        self.ui.canceltbutton.clicked.connect(self.close)  
+        self.ui.ctbutton.clicked.connect(self.create_ticket)  
+        self.ui.tctabs.currentChanged.connect(self.on_tab_change) 
+        self.ui.deletegarmentbutton.clicked.connect(self.delete_selected_garment)
+        self.ui.editgarmentbutton.setText("Remove Detail")
+        self.ui.editgarmentbutton.clicked.connect(self.remove_last_detail)
 
         
-        self.populate_tabs()
         
-
-        # Connect single click events to select a garment
-        self.ui.glist.itemClicked.connect(self.select_garment)
-
-        # Connect the "Add to Garment" button
+        self.ui.glist.itemDoubleClicked.connect(self.select_garment)
         self.ui.addtogarmentbutton.clicked.connect(self.add_selected_options_to_garment)
 
         self.selected_garment_item = None
 
-        # Initially hide the combobox
-        self.ui.garmentvariantsbox.setVisible(False)
-        self.ui.garmentvariantsbox.currentIndexChanged.connect(self.add_variant_to_ticket)
+        self.ui.add_piece.clicked.connect(self.increment_pieces)
+        self.ui.subtract_piece.clicked.connect(self.decrement_pieces)
+        self.ui.lcd_number.display(1)
 
-        # Connect plus and minus buttons to increment and decrement the number of pieces
-        self.ui.plusbutton.clicked.connect(self.increment_pieces)
-        self.ui.minusbutton.clicked.connect(self.decrement_pieces)
-        self.ui.piecesdisplay.display(1)
-
-        self.combobox_selection_in_progress = False
 
         # Connect item click events for all tab lists
         self.ui.sglist.itemClicked.connect(self.select_garment_variant)
@@ -89,8 +82,17 @@ class DetailedTicketWindow(QMainWindow):
 
         self.delivery_fee = 0
         self.items_per_tab = {0: [], 1: [], 2: []}  # Initialize for storing garments by tab
+        
+        self.populate_tabs()
+        
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
-       
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            ticket_type_id = self.ticket_type_id1 or self.ticket_type_id2 or self.ticket_type_id3
+            self.populate_garments(cursor, ticket_type_id)
+
         self.update_totals()
         
         self.populate_widgets_for_current_tab()
@@ -121,7 +123,7 @@ class DetailedTicketWindow(QMainWindow):
         self.setup_table_headers()
 
     def restore_saved_garment_list(self, tab_index):
-        """Restore garments for the given tab from saved data."""
+        """Restore garments for the given tab from saved data and align columns to the right."""
         current_garment_list = self.get_current_garment_list()
         current_garment_list.setRowCount(0)
         
@@ -131,12 +133,25 @@ class DetailedTicketWindow(QMainWindow):
                 current_garment_list.insertRow(row_position)
 
                 quantity_item = QTableWidgetItem(str(garment['quantity']))
+                quantity_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 variant_item = QTableWidgetItem(f"Variant {garment['garment_variant_id']}")
+                variant_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 colors_item = QTableWidgetItem(garment['colors'])
+                colors_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 patterns_item = QTableWidgetItem(garment['patterns'])
+                patterns_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 textures_item = QTableWidgetItem(garment['textures'])
+                textures_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 upcharges_item = QTableWidgetItem(garment['upcharges'])
+                upcharges_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+
                 price_item = QTableWidgetItem(f"${garment['price']:.2f}")
+                price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
 
                 current_garment_list.setItem(row_position, 0, quantity_item)
                 current_garment_list.setItem(row_position, 1, variant_item)
@@ -145,9 +160,10 @@ class DetailedTicketWindow(QMainWindow):
                 current_garment_list.setItem(row_position, 4, textures_item)
                 current_garment_list.setItem(row_position, 5, upcharges_item)
                 current_garment_list.setItem(row_position, 6, price_item)
+
     
     def load_tab_notes(self, tab_index):
-        """Load notes for the active tab."""
+        
         if tab_index == 0:
             self.ui.ticketnotes.setPlainText(self.notes1)
         elif tab_index == 1:
@@ -224,34 +240,38 @@ class DetailedTicketWindow(QMainWindow):
 
 
     def populate_garments(self, cursor, ticket_type_id):
-        # Retrieve garments associated with the ticket_type_id
-        cursor.execute("""
-            SELECT g.id, g.name, g.image_path, v.id, v.name, COALESCE(v.price, 0) as price
-            FROM Garments g
-            LEFT JOIN GarmentVariants v ON g.id = v.garment_id
-            JOIN ticket_type_garments ttg ON ttg.garments_id = g.id
-            WHERE ttg.ticket_type_id = ?
-        """, (ticket_type_id,))
+        self.ui.glist.clear()
 
-        garments = {}
-        for row in cursor.fetchall():
-            garment_id, garment_name, garment_image, variant_id, variant_name, price = row
-            if garment_id not in garments:
-                garments[garment_id] = {
-                    'name': garment_name,
-                    'image': garment_image,
-                    'variants': []
-                }
-            garments[garment_id]['variants'].append((variant_id, variant_name, price))
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
-        # Add garments to the list widget
-        for garment_id, garment_info in garments.items():
-            try:
-                garment_item = QListWidgetItem(QIcon(garment_info['image']), garment_info['name'])
-                garment_item.setData(Qt.UserRole, garment_id)
-                self.ui.glist.addItem(garment_item)
-            except Exception as e:
-                print(f"Error loading garment {garment_info['name']}: {e}")
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT g.id, g.name, v.id, v.name, COALESCE(v.price, 0)
+                FROM Garments g
+                LEFT JOIN GarmentVariants v ON g.id = v.garment_id
+                ORDER BY g.id, v.id
+            """)
+
+            garments = {}
+            for garment_id, garment_name, variant_id, variant_name, price in cursor.fetchall():
+                if garment_id not in garments:
+                    garments[garment_id] = {'name': garment_name, 'variants': []}
+                if variant_id:
+                    garments[garment_id]['variants'].append((variant_id, variant_name, price))
+
+            for garment_id, garment_info in garments.items():
+                garment_item = QTreeWidgetItem(self.ui.glist)
+                garment_item.setText(0, garment_info['name'])
+                garment_item.setData(0, Qt.UserRole, garment_id)
+                garment_item.setExpanded(False)
+
+                for variant_id, variant_name, price in garment_info['variants']:
+                    variant_item = QTreeWidgetItem(garment_item)
+                    variant_item.setText(0, f"{variant_name} - ${price:.2f}")
+                    variant_item.setData(0, Qt.UserRole, variant_id)
 
 
     def setup_table_headers(self):
@@ -275,14 +295,46 @@ class DetailedTicketWindow(QMainWindow):
         self.ui.sglist_3.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.ui.sglist_3.setSelectionMode(QAbstractItemView.SingleSelection)
 
+        # Disable direct editing, enable double-click edit only for "Counted Pieces"
+        self.ui.sglist.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.ui.sglist_2.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.ui.sglist_3.setEditTriggers(QAbstractItemView.NoEditTriggers)
+
+        self.ui.sglist.itemDoubleClicked.connect(self.enable_piece_editing)
+        self.ui.sglist_2.itemDoubleClicked.connect(self.enable_piece_editing)
+        self.ui.sglist_3.itemDoubleClicked.connect(self.enable_piece_editing)
+
+
+    def enable_piece_editing(self, item):
+        """Allow editing only when a user double-clicks on the 'Counted Pieces' column."""
+        if item.column() == 0:  # Only allow editing on the first column (Counted Pieces)
+            item.setFlags(item.flags() | Qt.ItemIsEditable)
+            self.ui.sglist.editItem(item)  # Open edit mode
+            self.ui.sglist_2.editItem(item)
+            self.ui.sglist_3.editItem(item)
+
+            # Update totals when editing is done
+            item.setFlags(item.flags() & ~Qt.ItemIsEditable)  # Re-disable editing
+            self.update_totals()
+
+
     def increment_pieces(self):
-        current_value = self.ui.piecesdisplay.intValue()
-        self.ui.piecesdisplay.display(current_value + 1)
+        if self.selected_variant_row is not None:
+            current_item = self.get_current_garment_list().item(self.selected_variant_row, 0)
+            current_value = int(current_item.text())
+            current_item.setText(str(current_value + 1))
+            self.ui.lcd_number.display(current_value + 1)
+            self.update_totals()
 
     def decrement_pieces(self):
-        current_value = self.ui.piecesdisplay.intValue()
-        if current_value > 1:
-            self.ui.piecesdisplay.display(current_value - 1)
+        if self.selected_variant_row is not None:
+            current_item = self.get_current_garment_list().item(self.selected_variant_row, 0)
+            current_value = int(current_item.text())
+            if current_value > 1:
+                current_item.setText(str(current_value - 1))
+                self.ui.lcd_number.display(current_value - 1)
+                self.update_totals()
+
             
     def save_current_tab_data(self):
         current_index = self.ui.tctabs.currentIndex()
@@ -372,6 +424,7 @@ class DetailedTicketWindow(QMainWindow):
                 current_garment_list.setItem(row_position, 5, upcharges_item)
                 current_garment_list.setItem(row_position, 6, price_item)
         self.setup_table_headers()
+    
     def populate_tabs(self):
         
         if self.ticket_type_id1:
@@ -412,18 +465,44 @@ class DetailedTicketWindow(QMainWindow):
     def update_totals(self):
         current_index = self.ui.tctabs.currentIndex()
 
-        initial_price = sum(quantity * price for _, _, quantity, price in self.items_per_tab[current_index])
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+
+        initial_price = 0
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            for item in self.items_per_tab[current_index]:
+                garment_variant_id = item["garment_variant_id"]
+                quantity = int(item["quantity"])
+
+                # Fetch price from the database
+                cursor.execute("SELECT COALESCE(price, 0) FROM GarmentVariants WHERE id = ?", (garment_variant_id,))
+                price_result = cursor.fetchone()
+
+                if price_result:
+                    price = float(price_result[0])
+                else:
+                    price = 0.00  # Default price if none is found
+
+                initial_price += quantity * price  # Calculate total
+
+        # Taxes, fees, and final total
         deductions = 0
         taxes = initial_price * 0.1
         delivery_fee = self.delivery_fee
         total_price = initial_price - deductions + taxes + delivery_fee
 
+        # Update UI labels
         self.ui.initial_price_label.setText(f"Initial Price: ${initial_price:.2f}")
         self.ui.total_price_label.setText(f"Total Price: ${total_price:.2f}")
         self.ui.deductions_label.setText(f"Deductions: ${deductions:.2f}")
         self.ui.taxes_label.setText(f"Taxes: ${taxes:.2f}")
         self.ui.delivery_fee_label.setText(f"Delivery Fee: ${delivery_fee:.2f}")
+
         self.setup_table_headers()
+
 
     def load_ticket_data(self, index):
         if not self.ticket_numbers[index]:
@@ -489,23 +568,28 @@ class DetailedTicketWindow(QMainWindow):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
+        try:
+            with sqlite3.connect(db_path) as conn:
+                cursor = conn.cursor()
 
-            total_price = sum(quantity * price for _, _, quantity, price in self.items_per_tab[self.ui.tctabs.currentIndex()])
+                total_price = sum(item['price'] * item['quantity'] for item in self.get_current_garment_list_data())
+                actual_pieces = sum(item['quantity'] for item in self.get_current_garment_list_data())
 
-            try:
-                cursor.execute("""
-                    INSERT INTO Tickets (customer_id, ticket_number, ticket_type_id, employee_id, date_created, total_price, pieces, date_due)
+                cursor.execute('''
+                    INSERT INTO Tickets (
+                        customer_id, ticket_number, ticket_type_id,
+                        employee_id, date_created, total_price,
+                        pieces, date_due
+                    )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
+                ''', (
                     self.customer_id,
                     next_ticket_number,
                     self.ticket_type_id1,
                     self.employee_id,
                     datetime.now().strftime('%Y-%m-%d %H:%M:%S'),
                     total_price,
-                    self.pieces1,
+                    actual_pieces,
                     self.due_date1,
                 ))
 
@@ -516,123 +600,262 @@ class DetailedTicketWindow(QMainWindow):
 
                 self.ticket_numbers[self.ui.tctabs.currentIndex()] = new_ticket_id
 
-            except Exception as e:
-                QMessageBox.warning(self, "Error", f"Failed to create ticket: {e}")
+        except Exception as e:
+            QMessageBox.warning(self, "Error", f"Failed to create ticket: {e}")
 
         return next_ticket_number
 
     def save_garments_to_ticket(self, ticket_id, current_index):
+        """Save garment variants to the ticket and correctly insert colors, patterns, textures, and upcharges into their respective tables."""
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
         with sqlite3.connect(db_path) as conn:
             cursor = conn.cursor()
 
-            for ticket_garment_id, garment_variant_id, quantity, price in self.items_per_tab[current_index]:
-                cursor.execute("""
-                    UPDATE TicketGarments
-                    SET quantity = ?, price = ?
-                    WHERE id = ?
-                """, (quantity, price, ticket_garment_id))
+            for row in range(self.get_current_garment_list().rowCount()):
+                quantity_item = self.get_current_garment_list().item(row, 0)
+                variant_item = self.get_current_garment_list().item(row, 1)
+                price_item = self.get_current_garment_list().item(row, 6)
 
-            total_price = sum(item[3] for item in self.items_per_tab[current_index])
-            cursor.execute("""
-                UPDATE Tickets
-                SET total_price = ?
-                WHERE id = ?
-            """, (total_price, ticket_id))
+                # Skip if any required item is missing
+                if quantity_item is None or variant_item is None or price_item is None:
+                    print(f"Skipping row {row} due to missing data.")
+                    continue
 
-            conn.commit()
+                try:
+                    quantity = int(quantity_item.text())
+                except ValueError:
+                    print(f"Invalid quantity in row {row}, setting to 1.")
+                    quantity = 1  # Default to 1 if parsing fails
 
-    def select_garment(self, item):
-        garment_id = item.data(Qt.UserRole)
+                garment_variant_id = variant_item.data(Qt.UserRole)
 
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+                try:
+                    price = float(price_item.text().replace("$", ""))
+                except ValueError:
+                    print(f"Invalid price in row {row}, setting to 0.00.")
+                    price = 0.00  # Default to 0.00 if parsing fails
 
-        with sqlite3.connect(db_path) as conn:
-            cursor = conn.cursor()
-
-            cursor.execute("""
-                SELECT id, name, COALESCE(price, 0) as price
-                FROM GarmentVariants
-                WHERE garment_id = ?
-            """, (garment_id,))
-            variants = cursor.fetchall()
-
-        self.combobox_selection_in_progress = True
-        self.ui.garmentvariantsbox.clear()
-        self.ui.garmentvariantsbox.addItem("Select Garment Variant", -1)
-        for variant_id, variant_name, price in variants:
-            self.ui.garmentvariantsbox.addItem(f"{variant_name} - ${price:.2f}", variant_id)
-
-        self.ui.garmentvariantsbox.setCurrentIndex(0)
-        self.ui.garmentvariantsbox.setVisible(True)
-        self.ui.garmentvariantsbox.setEnabled(True)
-        self.combobox_selection_in_progress = False
-
-        self.selected_garment_item = item
-
-    def add_variant_to_ticket(self, index):
-        if self.combobox_selection_in_progress or index == 0:
-            return
-
-        quantity = self.ui.piecesdisplay.intValue()
-
-        if quantity < 1:
-            QMessageBox.warning(self, "Invalid Quantity", "Please select at least 1 piece before adding a garment variant.")
-            return
-
-        try:
-            garment_variant_id = self.ui.garmentvariantsbox.currentData()
-            quantity = self.ui.piecesdisplay.intValue()
-            price = self.calculate_garment_variant_price(garment_variant_id)
-
-            current_index = self.ui.tctabs.currentIndex()
-            ticket_number = self.ticket_numbers[current_index]
-
-            project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-            db_path = os.path.join(project_root, 'models', 'pos_system.db')
-
-            with sqlite3.connect(db_path) as conn:
-                cursor = conn.cursor()
-
+                # Insert into TicketGarments table
                 cursor.execute("""
                     INSERT INTO TicketGarments (ticket_id, garment_variant_id, quantity, price)
                     VALUES (?, ?, ?, ?)
-                """, (ticket_number, garment_variant_id, quantity, price))
-                ticket_garment_id = cursor.lastrowid
+                """, (ticket_id, garment_variant_id, quantity, price))
 
-                conn.commit()
+                ticket_garment_id = cursor.lastrowid  # Get the newly inserted row ID
 
-            row_position = self.get_current_garment_list().rowCount()
-            self.get_current_garment_list().insertRow(row_position)
+                # Insert garment details into the appropriate tables
+                self.insert_garment_details(cursor, ticket_garment_id, row)
 
-            quantity_item = QTableWidgetItem(str(quantity))
-            variant_item = QTableWidgetItem(self.ui.garmentvariantsbox.currentText())
-            colors_item = QTableWidgetItem("")
-            patterns_item = QTableWidgetItem("")
-            textures_item = QTableWidgetItem("")
-            upcharges_item = QTableWidgetItem("")
-            price_item = QTableWidgetItem(f"${price:.2f}")
+            conn.commit()
 
-            self.get_current_garment_list().setItem(row_position, 0, quantity_item)
-            self.get_current_garment_list().setItem(row_position, 1, variant_item)
-            self.get_current_garment_list().setItem(row_position, 2, colors_item)
-            self.get_current_garment_list().setItem(row_position, 3, patterns_item)
-            self.get_current_garment_list().setItem(row_position, 4, textures_item)
-            self.get_current_garment_list().setItem(row_position, 5, upcharges_item)
-            self.get_current_garment_list().setItem(row_position, 6, price_item)
 
-            self.items_per_tab[current_index].append((ticket_garment_id, garment_variant_id, quantity, price))
-            self.get_current_garment_list().selectRow(row_position)
-            self.selected_variant_row = row_position
+    def insert_garment_details(self, cursor, ticket_garment_id, row):
+        """Insert colors, patterns, textures, and upcharges into their respective tables."""
+        current_garment_list = self.get_current_garment_list()
+
+        colors_item = current_garment_list.item(row, 2)
+        patterns_item = current_garment_list.item(row, 3)
+        textures_item = current_garment_list.item(row, 4)
+        upcharges_item = current_garment_list.item(row, 5)
+
+        colors = colors_item.text().split(", ") if colors_item else []
+        patterns = patterns_item.text().split(", ") if patterns_item else []
+        textures = textures_item.text().split(", ") if textures_item else []
+        upcharges = upcharges_item.text().split(", ") if upcharges_item else []
+
+        # Insert colors into garment_colors table
+        for color in colors:
+            cursor.execute("SELECT id FROM Colors WHERE name = ?", (color,))
+            color_id = cursor.fetchone()
+            if color_id:
+                cursor.execute("INSERT INTO garment_colors (ticket_garment_id, color_id) VALUES (?, ?)", 
+                            (ticket_garment_id, color_id[0]))
+
+        # Insert patterns into garment_patterns table
+        for pattern in patterns:
+            cursor.execute("SELECT id FROM Patterns WHERE name = ?", (pattern,))
+            pattern_id = cursor.fetchone()
+            if pattern_id:
+                cursor.execute("INSERT INTO garment_patterns (ticket_garment_id, pattern_id) VALUES (?, ?)", 
+                            (ticket_garment_id, pattern_id[0]))
+
+        # Insert textures into garment_textures table
+        for texture in textures:
+            cursor.execute("SELECT id FROM Textures WHERE name = ?", (texture,))
+            texture_id = cursor.fetchone()
+            if texture_id:
+                cursor.execute("INSERT INTO garment_textures (ticket_garment_id, texture_id) VALUES (?, ?)", 
+                            (ticket_garment_id, texture_id[0]))
+
+        # Insert upcharges into garment_upcharges table
+        for upcharge in upcharges:
+            cursor.execute("SELECT id FROM Upcharges WHERE name = ?", (upcharge,))
+            upcharge_id = cursor.fetchone()
+            if upcharge_id:
+                cursor.execute("INSERT INTO garment_upcharges (ticket_garment_id, upcharge_id) VALUES (?, ?)", 
+                            (ticket_garment_id, upcharge_id[0]))
+
+
+    def load_garments(self):
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            # Retrieve garments
+            cursor.execute("""
+                SELECT id, name
+                FROM Garments
+            """)
+            garments = cursor.fetchall()
+
+        # Populate Column 1 with garments
+        self.ui.column1.clear()  # Ensure column1 is clear before populating
+
+        for garment_id, garment_name in garments:
+            garment_item = QTreeWidgetItem(self.ui.column1)
+            garment_item.setText(0, garment_name)
+            garment_item.setData(0, Qt.UserRole, garment_id)
+
+            # Connect click event to load garment variants in column2
+            self.ui.column1.itemClicked.connect(self.select_garment)
+
+
+    def select_garment(self, item):
+        if isinstance(item, QTreeWidgetItem) and item.parent() is not None:
+            # Pass the whole item instead of extracting the ID here
+            self.add_variant_to_ticket(item)
+
+
+    def delete_selected_garment(self):
+       
+        if self.selected_variant_row is None:
+            QMessageBox.warning(self, "Error", "Please select a garment variant to delete.")
+            return
+
+        current_garment_list = self.get_current_garment_list()
+        current_garment_list.removeRow(self.selected_variant_row)
+        self.selected_variant_row = None  # Clear the selection
+
+        self.update_totals()
+
+    def populate_garment_variants(self, garment_id):
+        self.ui.glist.clear()  # Clear Column 2 before populating
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT v.id, v.name, COALESCE(v.price, 0)
+                FROM GarmentVariants v
+                WHERE v.garment_id = ?
+            """, (garment_id,))
+
+            for variant_id, variant_name, price in cursor.fetchall():
+                variant_item = QTreeWidgetItem(self.ui.glist)
+                variant_item.setText(0, f"{variant_name} - ${price:.2f}")
+                variant_item.setData(0, Qt.UserRole, variant_id)
+
+
+    def remove_last_detail(self):
+        if self.selected_variant_row is None:
+            QMessageBox.warning(self, "Error", "Please select a garment variant first.")
+            return
+
+        current_garment_list = self.get_current_garment_list()
+        selected_item = current_garment_list.item(self.selected_variant_row, current_garment_list.currentColumn())
+
+        if selected_item:
+            details = selected_item.text().split(", ")
+            if details:
+                details.pop()  # Remove the last detail
+                selected_item.setText(", ".join(details))
+
+        self.update_totals()
+
+
+    def add_variant_to_ticket(self, item):
+        """Add selected garment variant to the ticket list without affecting existing piece counts."""
+        if item is None:
+            return
+
+        variant_id = item.data(0, Qt.UserRole)
+        pieces = self.ui.lcd_number.intValue()
+
+        if pieces < 1:
+            QMessageBox.warning(self, "Invalid Quantity", "Please select at least 1 piece before adding a garment variant.")
+            return
+
+        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+        db_path = os.path.join(project_root, 'models', 'pos_system.db')
+
+        with sqlite3.connect(db_path) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name, COALESCE(price, 0) FROM GarmentVariants WHERE id = ?", (variant_id,))
+            result = cursor.fetchone()
+
+        if result:
+            variant_name, price = result
+            current_garment_list = self.get_current_garment_list()
+            
+            # Check if the garment variant is already in the list
+            existing_row = None
+            for row in range(current_garment_list.rowCount()):
+                existing_variant = current_garment_list.item(row, 1)
+                if existing_variant and existing_variant.data(Qt.UserRole) == variant_id:
+                    existing_row = row
+                    break
+
+            if existing_row is not None:
+                # If variant already exists, ask the user if they want to update pieces
+                reply = QMessageBox.question(self, "Update Quantity",
+                    f"This garment variant is already added.\nDo you want to update the quantity?",
+                    QMessageBox.Yes | QMessageBox.No, QMessageBox.No)
+                
+                if reply == QMessageBox.Yes:
+                    quantity_item = current_garment_list.item(existing_row, 0)
+                    if quantity_item:
+                        new_pieces = int(quantity_item.text()) + pieces  # Add to existing count
+                        quantity_item.setText(str(new_pieces))
+                        self.update_totals()
+                return
+
+            # Add new row for this variant
+            row_position = current_garment_list.rowCount()
+            current_garment_list.insertRow(row_position)
+
+            quantity_item = QTableWidgetItem(str(pieces))
+            quantity_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(row_position, 0, quantity_item)
+
+            variant_item = QTableWidgetItem(variant_name)
+            variant_item.setData(Qt.UserRole, variant_id)
+            variant_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(row_position, 1, variant_item)
+
+            price_item = QTableWidgetItem(f"${price * pieces:.2f}")
+            price_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(row_position, 6, price_item)
+
+            # Store garment details
+            self.items_per_tab[self.ui.tctabs.currentIndex()].append({
+                "garment_variant_id": variant_id,
+                "garment_variant_name": variant_name,
+                "quantity": pieces,
+                "price": price,
+                "colors": "",
+                "patterns": "",
+                "textures": "",
+                "upcharges": "",
+            })
 
             self.update_totals()
 
-        except Exception as e:
-            QMessageBox.warning(self, "Error", f"An error occurred: {e}")
-            self.update_totals()
+
+
 
     def calculate_garment_variant_price(self, garment_variant_id):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -657,12 +880,28 @@ class DetailedTicketWindow(QMainWindow):
         self.close()
 
     def select_garment_variant(self, item):
+       
         self.selected_variant_row = item.row()
 
+        pieces_item = self.get_current_garment_list().item(self.selected_variant_row, 0)
+        if pieces_item:
+            current_pieces = int(pieces_item.text())
+            self.ui.lcd_number.display(current_pieces)
+
+
+
     def add_option_to_garment(self, item, option_type):
+        current_index = self.ui.tctabs.currentIndex()
+        
         if self.selected_variant_row is None:
+
             QMessageBox.warning(self, "Error", "Please select a garment variant first.")
             return
+
+        if self.selected_variant_row >= len(self.items_per_tab[current_index]):
+            QMessageBox.warning(self, "Error", "Invalid garment selection. Please try again.")
+            return
+
 
         option_id = item.data(Qt.UserRole)
         current_index = self.ui.tctabs.currentIndex()
@@ -706,20 +945,66 @@ class DetailedTicketWindow(QMainWindow):
         self.update_totals()
 
     def add_selected_options_to_garment(self):
+        """Ensure a garment variant is selected before adding details, then update the UI and database."""
         if self.selected_variant_row is None:
-            QMessageBox.warning(self, "Error", "Please select a garment variant first.")
+            QMessageBox.warning(self, "Error", "Please select a garment variant row before adding details.")
             return
+
+        current_garment_list = self.get_current_garment_list()
+        selected_item = current_garment_list.item(self.selected_variant_row, 1)  # Get the selected variant column
+
+        if not selected_item:
+            QMessageBox.warning(self, "Error", "Invalid selection. Please select a valid garment variant.")
+            return
+
+        ticket_garment_id = selected_item.data(Qt.UserRole)  # Ensure we are modifying the correct garment
+
+        # Add options from the lists
+        colors = []
+        patterns = []
+        textures = []
+        upcharges = []
 
         for option_list in [self.ui.clist, self.ui.plist, self.ui.tlist, self.ui.ulist]:
             for i in range(option_list.count()):
                 item = option_list.item(i)
                 if item.isSelected():
                     option_type = self.get_option_type(option_list)
-                    self.add_option_to_garment(item, option_type)
-                    item.setSelected(False)
+
+                    if option_type == "colors":
+                        colors.append(item.text())
+                    elif option_type == "patterns":
+                        patterns.append(item.text())
+                    elif option_type == "textures":
+                        textures.append(item.text())
+                    elif option_type == "upcharges":
+                        upcharges.append(item.text())
+
+                    item.setSelected(False)  # Deselect after adding
+
+        # Ensure garment variant row is updated with selected details
+        if colors:
+            color_item = QTableWidgetItem(", ".join(colors))
+            color_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(self.selected_variant_row, 2, color_item)
+
+        if patterns:
+            pattern_item = QTableWidgetItem(", ".join(patterns))
+            pattern_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(self.selected_variant_row, 3, pattern_item)
+
+        if textures:
+            texture_item = QTableWidgetItem(", ".join(textures))
+            texture_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(self.selected_variant_row, 4, texture_item)
+
+        if upcharges:
+            upcharge_item = QTableWidgetItem(", ".join(upcharges))
+            upcharge_item.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            current_garment_list.setItem(self.selected_variant_row, 5, upcharge_item)
 
         self.update_totals()
-        
+
 
     def get_option_type(self, option_list):
         if option_list == self.ui.clist:
@@ -733,6 +1018,7 @@ class DetailedTicketWindow(QMainWindow):
         return None
 
     def get_garment_details(self, ticket_garment_id):
+        """Retrieve colors, patterns, textures, and upcharges for a given garment variant."""
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
 
@@ -772,6 +1058,7 @@ class DetailedTicketWindow(QMainWindow):
             upcharges = ", ".join(row[0] for row in cursor.fetchall())
 
         return colors, patterns, textures, upcharges
+
 
     def get_current_garment_list(self):
         current_index = self.ui.tctabs.currentIndex()

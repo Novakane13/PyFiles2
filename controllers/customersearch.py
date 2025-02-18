@@ -3,7 +3,7 @@ import sqlite3
 import os
 from PySide6.QtWidgets import QApplication, QDialog, QTreeWidgetItem, QAbstractItemView
 from PySide6.QtCore import Signal, Slot, Qt
-from views.Test import Ui_CustomerSearch
+from views.customersearchui import Ui_CustomerSearch
 
 class CustomerSearch(QDialog, Ui_CustomerSearch):
     customer_selected = Signal(dict)
@@ -16,7 +16,7 @@ class CustomerSearch(QDialog, Ui_CustomerSearch):
 
         # Connect buttons to their functions
         self.searchbutton.clicked.connect(self.search_customers)
-        self.ncbutton.clicked.connect(self.create_new_customer)
+        self.ncbutton.clicked.connect(self.new_customer)
         self.closebutton.clicked.connect(self.close)
         self.clearresultsbutton.clicked.connect(self.clear_results)
         self.resultslist.itemDoubleClicked.connect(self.select_customer)

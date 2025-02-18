@@ -1,9 +1,9 @@
 import sqlite3
 import os
-from PySide6.QtWidgets import QMainWindow, QColorDialog, QFileDialog, QListWidgetItem, QMessageBox
+from PySide6.QtWidgets import QMainWindow, QFileDialog, QListWidgetItem, QMessageBox
 from PySide6.QtGui import QPixmap, QIcon
 from PySide6.QtCore import Qt
-from views.Test import Ui_TicketOptionsCreation
+from views.ticketoptionsui import Ui_TicketOptionsCreation
 
 class TicketOptionsWindow(QMainWindow):
     def __init__(self):

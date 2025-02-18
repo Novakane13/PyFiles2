@@ -1,18 +1,18 @@
-import sys
 import os
 import sqlite3
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QMainWindow, QApplication, QDialog, QMessageBox, QFileDialog
+from PySide6.QtWidgets import QMainWindow, QMessageBox, QFileDialog
 from PySide6.QtGui import QPixmap
-from views.Test import Ui_Main
+from views.homewindowui import Ui_Main
 from controllers.customersearch import CustomerSearch
 from controllers.tickettype import TicketTypeCreationWindow
 from controllers.garmentscolors import GarmentsColorsWindow
 from controllers.ticketoptions import TicketOptionsWindow
 from controllers.customeraccount import CustomerAccountWindow
 from controllers.garmentpricing import GarmentPricingWindow
-from controllers.detailedticket import DetailedTicketWindow
 from controllers.quickticket import QuickTicketWindow
+from controllers.employeelist import EmployeeListWindow
+
 
 class MainWindow(QMainWindow):
     IMAGE_PATH_FILE = "image_path.txt"
@@ -21,6 +21,7 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.ui = Ui_Main()  # Assume this is your main UI class generated from Qt Designer
         self.ui.setupUi(self)
+        
         
         self.employee_id = employee_id
         
@@ -33,7 +34,14 @@ class MainWindow(QMainWindow):
         self.ui.ttcbutton.clicked.connect(self.open_ticket_type_creation_window)
         self.ui.gandccbutton.clicked.connect(self.open_garments_colors_window)
         self.ui.tocbutton.clicked.connect(self.open_ticket_options_window)
-        self.ui.pushButton.clicked.connect(self.open_garment_pricing_window)
+        self.ui.garmpricingbutton.clicked.connect(self.open_garment_pricing_window)
+        self.ui.createempbutton.clicked.connect(self.open_employee_list_window)
+
+
+    def open_employee_list_window(self):
+        self.employee_list_window = EmployeeListWindow(main_window=self)
+        self.employee_list_window.show()
+        self.hide()
 
     def open_search_window(self):
         """Open the Customer Search window."""
@@ -209,4 +217,5 @@ class MainWindow(QMainWindow):
                         self.ui.label.setPixmap(QPixmap(file_path))
                         self.ui.label.setScaledContents(True)
             except Exception as e:
+
                 print(f"Error loading saved image: {e}")

@@ -1,7 +1,7 @@
 import sqlite3
 import os
 from PySide6.QtWidgets import QMainWindow, QTreeWidgetItem, QApplication, QMessageBox
-from views.Test import Ui_garmentpricing  # Import the UI from Test.py
+from views.garmentpricingui import Ui_garmentpricing  
 from PySide6.QtCore import Qt
 
 class GarmentPricingWindow(QMainWindow):

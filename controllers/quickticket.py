@@ -1,11 +1,9 @@
-from datetime import datetime
 import sqlite3
 import os
-import sys
-from PySide6.QtWidgets import QMainWindow, QMessageBox, QWidget, QVBoxLayout, QDial, QPushButton, QDateEdit, QTimeEdit, QApplication
-from PySide6.QtCore import QDateTime, Signal, QEvent, QDate, QTime
-#from PySide6.QtGui import 
-from views.Test import Ui_QuickTicketCreation
+from PySide6.QtWidgets import QMainWindow, QMessageBox
+from PySide6.QtCore import QDateTime, Signal
+from views.quickticketui import Ui_QuickTicketCreation
+from views.utils import get_next_ticket_number
 
 
 
@@ -13,9 +11,6 @@ from views.Test import Ui_QuickTicketCreation
 
 class QuickTicketWindow(QMainWindow):
     quick_ticket_created = Signal(dict)
-
-    DATE_MODE = 0
-    TIME_MODE = 1
 
     def __init__(self, customer_id=None, employee_id=None, ticket_id=None):
         super().__init__()
@@ -32,75 +27,72 @@ class QuickTicketWindow(QMainWindow):
         if self.ticket_id:
             self.load_existing_ticket_data()
 
-        # Initial mode is DATE_MODE
-        self.current_mode = QuickTicketWindow.DATE_MODE
-
+        # Connect button signals
         self.ui.qtclosebutton.clicked.connect(self.close)
         self.ui.qtsandpbutton.clicked.connect(self.save_and_print_ticket)
         self.ui.createdetailedticket.clicked.connect(self.create_detailed_tickets)
 
-        self.ui.dial.installEventFilter(self)
-        self.ui.dial_2.installEventFilter(self)
-        self.ui.dial_3.installEventFilter(self)
+        # Set up dials so that each represents -48 to +48 hours (a total of 96 hours or 4 days)
+        for dial in [self.ui.dial_1, self.ui.dial_2, self.ui.dial_3]:
+            dial.setRange(-48, 48)
+            dial.setSingleStep(1)
+            dial.setValue(0)
 
-        self.ui.dial.valueChanged.connect(self.update_due_date_or_time1)
+        # Initialize QDateTimeEdits to current date/time and store them as the "base" datetimes.
+        self.ui.dateTimeEdit_1.setDateTime(QDateTime.currentDateTime())
+        self.ui.dateTimeEdit_2.setDateTime(QDateTime.currentDateTime())
+        self.ui.dateTimeEdit_3.setDateTime(QDateTime.currentDateTime())
+        self.base_datetime1 = self.ui.dateTimeEdit_1.dateTime()
+        self.base_datetime2 = self.ui.dateTimeEdit_2.dateTime()
+        self.base_datetime3 = self.ui.dateTimeEdit_3.dateTime()
+
+        # Connect dial changes to update the corresponding QDateTimeEdit
+        self.ui.dial_1.valueChanged.connect(self.update_due_date_or_time1)
         self.ui.dial_2.valueChanged.connect(self.update_due_date_or_time2)
         self.ui.dial_3.valueChanged.connect(self.update_due_date_or_time3)
 
-        self.set_dial_ranges()
-
-        self.ui.dateTimeEdit.setDate(QDate.currentDate())
-        self.ui.dateTimeEdit_2.setDate(QDate.currentDate())
-        self.ui.dateTimeEdit_3.setDate(QDate.currentDate())
-        self.ui.dateTimeEdit.setTime(QTime.currentTime())
-        self.ui.dateTimeEdit_2.setTime(QTime.currentTime())
-        self.ui.dateTimeEdit_3.setTime(QTime.currentTime())
+        # When the user manually changes the QDateTimeEdit, update the base datetime and reset the dial.
+        self.ui.dateTimeEdit_1.dateTimeChanged.connect(self.update_base_datetime1)
+        self.ui.dateTimeEdit_2.dateTimeChanged.connect(self.update_base_datetime2)
+        self.ui.dateTimeEdit_3.dateTimeChanged.connect(self.update_base_datetime3)
 
         self.populate_ticket_types()
 
-    def set_dial_ranges(self):
-        if self.current_mode == QuickTicketWindow.DATE_MODE:
-            self.ui.dial.setRange(-250, 250)
-            self.ui.dial_2.setRange(-250, 250)
-            self.ui.dial_3.setRange(-250, 250)
-        elif self.current_mode == QuickTicketWindow.TIME_MODE:
-            self.ui.dial.setRange(-900, 900)
-            self.ui.dial_2.setRange(-900, 900)
-            self.ui.dial_3.setRange(-900, 900)
+    def update_due_date_or_time1(self, offset_hours):
+        """
+        Update dateTimeEdit_1 based on the dial's offset (in hours) added to the base datetime.
+        """
+        new_dt = self.base_datetime1.addSecs(offset_hours * 3600)
+        self.ui.dateTimeEdit_1.setDateTime(new_dt)
 
-    def eventFilter(self, source, event):
-        if event.type() == QEvent.MouseButtonDblClick:
-            if source in [self.ui.dial, self.ui.dial_2, self.ui.dial_3]:
-                self.switch_mode()
-        return super().eventFilter(source, event)
+    def update_due_date_or_time2(self, offset_hours):
+        new_dt = self.base_datetime2.addSecs(offset_hours * 3600)
+        self.ui.dateTimeEdit_2.setDateTime(new_dt)
 
-    def switch_mode(self):
-        self.current_mode = QuickTicketWindow.TIME_MODE if self.current_mode == QuickTicketWindow.DATE_MODE else QuickTicketWindow.DATE_MODE
-        self.set_dial_ranges()
+    def update_due_date_or_time3(self, offset_hours):
+        new_dt = self.base_datetime3.addSecs(offset_hours * 3600)
+        self.ui.dateTimeEdit_3.setDateTime(new_dt)
 
-    def update_due_date_or_time1(self, value):
-        if self.current_mode == QuickTicketWindow.DATE_MODE:
-            new_date = QDate.currentDate().addDays(value)
-            self.ui.dateTimeEdit.setDate(new_date)
-        elif self.current_mode == QuickTicketWindow.TIME_MODE:
-            new_time = QTime.currentTime().addSecs(value * 60)
-            self.ui.dateTimeEdit.setTime(new_time)
+    def update_base_datetime1(self, new_datetime):
+        """
+        When the user manually updates dateTimeEdit_1, update the stored base datetime and reset dial_1.
+        """
+        self.base_datetime1 = new_datetime
+        self.ui.dial_1.blockSignals(True)
+        self.ui.dial_1.setValue(0)
+        self.ui.dial_1.blockSignals(False)
 
-    def update_due_date_or_time2(self, value):
-        if self.current_mode == QuickTicketWindow.DATE_MODE:
-            new_date = QDate.currentDate().addDays(value)
-            self.ui.dateTimeEdit_2.setDate(new_date)
-        elif self.current_mode == QuickTicketWindow.TIME_MODE:
-            new_time = QTime.currentTime().addSecs(value * 60)
-            self.ui.dateTimeEdit_2.setTime(new_time)
+    def update_base_datetime2(self, new_datetime):
+        self.base_datetime2 = new_datetime
+        self.ui.dial_2.blockSignals(True)
+        self.ui.dial_2.setValue(0)
+        self.ui.dial_2.blockSignals(False)
 
-    def update_due_date_or_time3(self, value):
-        if self.current_mode == QuickTicketWindow.DATE_MODE:
-            new_date = QDate.currentDate().addDays(value)
-            self.ui.dateTimeEdit_3.setDate(new_date)
-        elif self.current_mode == QuickTicketWindow.TIME_MODE:
-            new_time = QTime.currentTime().addSecs(value * 60)
-            self.ui.dateTimeEdit_3.setTime(new_time)
+    def update_base_datetime3(self, new_datetime):
+        self.base_datetime3 = new_datetime
+        self.ui.dial_3.blockSignals(True)
+        self.ui.dial_3.setValue(0)
+        self.ui.dial_3.blockSignals(False)
 
     def populate_ticket_types(self):
         project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -129,13 +121,6 @@ class QuickTicketWindow(QMainWindow):
         }
 
     def construct_quick_ticket_details(self, ticket_number, ticket_data):
-        """
-        Constructs the quick ticket details into a dictionary.
-        
-        :param ticket_number: The number of the ticket.
-        :param ticket_data: A list containing the ticket data for up to 3 ticket types.
-        :return: A dictionary containing the detailed information of the quick ticket.
-        """
         quick_ticket_details = {
             'ticket_number': ticket_number,
             'customer_id': self.customer_id,
@@ -160,7 +145,6 @@ class QuickTicketWindow(QMainWindow):
             } if ticket_data[2][0] else None,
             'all_notes': self.ui.atninput.toPlainText()
         }
-
         return quick_ticket_details
 
     def save_and_print_ticket(self):
@@ -169,27 +153,18 @@ class QuickTicketWindow(QMainWindow):
             QMessageBox.warning(self, "Input Error", "Customer ID or Employee ID is missing.")
             return
 
-        next_ticket_number = self.get_next_ticket_number() if self.ticket_id is None else self.ticket_id
-
+        next_ticket_number = get_next_ticket_number() if self.ticket_id is None else self.ticket_id
         ticket_data = [self.get_ticket_data(i) for i in range(1, 4)]
-
         if not any(data[0] for data in ticket_data):
             QMessageBox.warning(self, "Input Error", "Please select at least one ticket type.")
             return
 
         try:
-            # Insert the quick ticket
             self.insert_quick_ticket(next_ticket_number, ticket_data)
-
-            # Construct the details for the quick ticket
             quick_ticket_details = self.construct_quick_ticket_details(next_ticket_number, ticket_data)
-
-            # Emit the quick ticket creation signal with details
             self.quick_ticket_created.emit({'customer_id': self.customer_id, 'quick_ticket': quick_ticket_details})
-
             QMessageBox.information(self, "Success", "Quick ticket created and saved successfully.")
             self.print_ticket()
-
         except Exception as e:
             QMessageBox.warning(self, "Error", f"An unexpected error occurred: {e}")
 
@@ -201,10 +176,7 @@ class QuickTicketWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
-        # Capture the current date and time for `date_created`
         date_created = QDateTime.currentDateTime().toString('yyyy-MM-dd HH:mm:ss')
-
         cursor.execute('''
             INSERT INTO quick_tickets (
                 ticket_number, customer_id, employee_id,
@@ -222,10 +194,8 @@ class QuickTicketWindow(QMainWindow):
             ticket_data[0][3], ticket_data[1][3], ticket_data[2][3],
             self.ui.atninput.toPlainText(), date_created
         ))
-
         conn.commit()
         conn.close()
-
 
     def create_detailed_tickets(self):
         try:
@@ -235,7 +205,7 @@ class QuickTicketWindow(QMainWindow):
                 if ticket_type_id:
                     if i == 1:
                         pieces = self.ui.qtpselection.value()
-                        due_date = self.ui.dateTimeEdit.date().toString('yyyy-MM-dd') + ' ' + self.ui.dateTimeEdit.time().toString('HH:mm')
+                        due_date = self.ui.dateTimeEdit_1.date().toString('yyyy-MM-dd') + ' ' + self.ui.dateTimeEdit_1.time().toString('HH:mm')
                         notes = self.ui.qtninput.toPlainText()
                     elif i == 2:
                         pieces = self.ui.qtpselection_2.value()
@@ -260,7 +230,6 @@ class QuickTicketWindow(QMainWindow):
 
             for index, ticket_detail in enumerate(quick_ticket_details):
                 self.populate_tab(index + 1, ticket_detail['ticket_type_id'], ticket_detail['pieces'], ticket_detail['due_date'], ticket_detail['notes'])
-
         except Exception as e:
             QMessageBox.warning(self, "Error", f"An error occurred while creating detailed tickets: {e}")
 
@@ -268,23 +237,23 @@ class QuickTicketWindow(QMainWindow):
         if index == 1:
             return (
                 self.ui.ttselection.currentData(),    # Ticket Type ID for first ticket type
-                self.ui.qtpselection.value(),          # Pieces for first ticket type
-                self.ui.dateTimeEdit.dateTime().toString('yyyy-MM-dd HH:mm'),  # Due date for first ticket type
-                self.ui.qtninput.toPlainText()         # Notes for first ticket type
+                self.ui.qtpselection.value(),           # Pieces for first ticket type
+                self.ui.dateTimeEdit_1.dateTime().toString('yyyy-MM-dd HH:mm'),  # Due date for first ticket type
+                self.ui.qtninput.toPlainText()           # Notes for first ticket type
             )
         elif index == 2:
             return (
-                self.ui.ttselection_2.currentData(),   # Ticket Type ID for second ticket type
-                self.ui.qtpselection_2.value(),        # Pieces for second ticket type
+                self.ui.ttselection_2.currentData(),    # Ticket Type ID for second ticket type
+                self.ui.qtpselection_2.value(),           # Pieces for second ticket type
                 self.ui.dateTimeEdit_2.dateTime().toString('yyyy-MM-dd HH:mm'),  # Due date for second ticket type
-                self.ui.qtninput_2.toPlainText()       # Notes for second ticket type
+                self.ui.qtninput_2.toPlainText()          # Notes for second ticket type
             )
         elif index == 3:
             return (
-                self.ui.ttselection_3.currentData(),   # Ticket Type ID for third ticket type
-                self.ui.qtpselection_3.value(),        # Pieces for third ticket type
+                self.ui.ttselection_3.currentData(),    # Ticket Type ID for third ticket type
+                self.ui.qtpselection_3.value(),           # Pieces for third ticket type
                 self.ui.dateTimeEdit_3.dateTime().toString('yyyy-MM-dd HH:mm'),  # Due date for third ticket type
-                self.ui.qtninput_3.toPlainText()       # Notes for third ticket type
+                self.ui.qtninput_3.toPlainText()          # Notes for third ticket type
             )
         else:
             return None
@@ -294,27 +263,7 @@ class QuickTicketWindow(QMainWindow):
         db_path = os.path.join(project_root, 'models', 'pos_system.db')
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
         cursor.execute("SELECT name FROM TicketTypes WHERE id = ?", (ticket_type_id,))
         ticket_type_name = cursor.fetchone()[0]
         conn.close()
-
         return ticket_type_name
-    
-    def get_next_ticket_number(self):
-        # Establish a connection to the database
-        project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
-        db_path = os.path.join(project_root, 'models', 'pos_system.db')
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-
-        # Fetch the maximum ticket number currently in the table
-        cursor.execute("SELECT MAX(ticket_number) FROM quick_tickets")
-        max_ticket_number = cursor.fetchone()[0]
-
-        # If there's no existing ticket, start at 1, otherwise, increment
-        next_ticket_number = max_ticket_number + 1 if max_ticket_number else 1
-
-        conn.close()
-        
-        return next_ticket_number

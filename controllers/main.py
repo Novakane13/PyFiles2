@@ -1,7 +1,6 @@
 import sys
 import os
-from PySide6.QtWidgets import QApplication, QMainWindow, QDialog
-from PySide6.QtCore import Qt
+from PySide6.QtWidgets import QApplication, QDialog
 
 # Add the project root directory to sys.path
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -9,6 +8,7 @@ sys.path.append(project_root)
 
 from controllers.homewindow import MainWindow
 from controllers.employeelogin import EmployeeLogin  # Import the EmployeeLogin
+
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)

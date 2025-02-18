@@ -3,15 +3,7 @@ import os
 from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
 from PySide6.QtCore import Qt
 from PySide6.QtGui import QColor
-from views.Test import Ui_TicketTypeCreation
-from resources import resources_rc
-
-import sqlite3
-import os
-from PySide6.QtWidgets import QMainWindow, QListWidgetItem, QMessageBox
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor
-from views.Test import Ui_TicketTypeCreation
+from views.tickettypeui import Ui_TicketTypeCreation
 
 class TicketTypeCreationWindow(QMainWindow):
     def __init__(self):
